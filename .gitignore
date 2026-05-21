@@ -1,0 +1,42 @@
+# Java / Spring Boot
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.log
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment and local configuration
+.env
+.env.*
+application-local.yml
+application-local.yaml
+application-local.properties
+
+# Docker / local runtime
+docker-compose.override.yml
+*.pid
+
