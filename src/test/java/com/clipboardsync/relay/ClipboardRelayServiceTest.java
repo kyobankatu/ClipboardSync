@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ClipboardRelayServiceTest {
 
     private final ClipboardRelayService relayService = new ClipboardRelayService(
-            new ClipboardSyncProperties("/ws/clipboard", new String[]{"*"}, 128, Map.of("device-a", "public-key")),
+            new ClipboardSyncProperties("/ws/clipboard", new String[]{"*"}, 128, "", Map.of("device-a", "public-key")),
             new ObjectMapper()
     );
 

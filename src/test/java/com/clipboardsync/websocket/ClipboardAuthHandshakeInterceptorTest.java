@@ -130,7 +130,7 @@ class ClipboardAuthHandshakeInterceptorTest {
 
     private ClipboardAuthHandshakeInterceptor interceptor(Map<String, String> devicePublicKeys) {
         return new ClipboardAuthHandshakeInterceptor(
-                new ClipboardSyncProperties(PATH, new String[]{"*"}, 128, devicePublicKeys),
+                new ClipboardSyncProperties(PATH, new String[]{"*"}, 128, "", devicePublicKeys),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }

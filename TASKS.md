@@ -346,7 +346,76 @@ Add focused tests for:
 - Auto-start on login.
 - Production deployment changes.
 
-## 11. 後回しにする項目
+## 11. File-Based Key Configuration Plan
+
+The next usability improvement is to remove repeated copy/paste of keys from command lines.
+
+### Server Public Key Configuration
+
+- Allow the relay server to load trusted client public keys from a directory.
+- Use one file per device ID.
+- Default or configured directory example: `/config/device-public-keys`.
+- Each file name is the device ID.
+- Each file content is the Base64 encoded Ed25519 public key.
+- Keep environment variable support as a fallback for simple local testing.
+- Treat public keys as non-secret, but still avoid committing real personal device identifiers when publishing examples.
+- Fail startup if no public key is found from either configured properties, environment variables, or the public key directory.
+
+Example mounted files:
+
+```text
+/config/device-public-keys/MACBOOK
+/config/device-public-keys/WINDOWS
+```
+
+### Client Local Configuration File
+
+- Allow CLI clients to load configuration from a local properties file.
+- Default path on macOS/Linux: `~/.config/clipboardsync/client.properties`.
+- Default path on Windows: `%APPDATA%\ClipboardSync\client.properties`.
+- Allow overriding the path with `CLIPBOARD_SYNC_CLIENT_CONFIG`.
+- Keep environment variable support as an override for testing.
+- Store the following values in the file:
+  - `serverUrl`
+  - `deviceId`
+  - `ed25519PrivateKey`
+  - `e2eKey`
+  - `websocketPath`
+- Never commit real client configuration files.
+
+Example client file:
+
+```properties
+serverUrl=wss://relay.example.com/ws/clipboard
+deviceId=MACBOOK
+ed25519PrivateKey=<client-only-private-key>
+e2eKey=<shared-e2e-key>
+websocketPath=/ws/clipboard
+```
+
+### Client File Permission Checks
+
+- On POSIX systems, reject or warn when the client config file is readable by group or others.
+- Start with a warning to avoid blocking Windows and unusual filesystems.
+- Recommend `chmod 600 ~/.config/clipboardsync/client.properties`.
+- Do not log secret values from the config file.
+
+### Key Generation Usability
+
+- Update `client generate-keys` output to include a client properties template.
+- Clearly label server-safe public key output.
+- Clearly label client-only private key and E2E key output.
+- Do not automatically write files unless a later explicit command is added.
+
+### Tests
+
+- Test server public key loading from a temporary directory.
+- Test client config loading from a temporary properties file.
+- Test environment variables overriding file values.
+- Test missing config values produce clear errors.
+- Test POSIX-readable-by-group/others detection when supported by the filesystem.
+
+## 12. 後回しにする項目
 
 - クリップボード履歴
 - 画像やファイルの同期

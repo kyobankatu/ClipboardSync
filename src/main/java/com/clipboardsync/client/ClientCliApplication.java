@@ -44,6 +44,13 @@ public final class ClientCliApplication {
         System.out.println("Client-only values:");
         System.out.println("CLIPBOARD_SYNC_ED25519_PRIVATE_KEY=" + keys.ed25519PrivateKey());
         System.out.println("CLIPBOARD_SYNC_E2E_KEY=" + keys.e2eKey());
+        System.out.println();
+        System.out.println("Client properties template:");
+        System.out.println("serverUrl=wss://relay.example.com/ws/clipboard");
+        System.out.println("deviceId=<DEVICE_ID>");
+        System.out.println("ed25519PrivateKey=" + keys.ed25519PrivateKey());
+        System.out.println("e2eKey=" + keys.e2eKey());
+        System.out.println("websocketPath=/ws/clipboard");
     }
 
     private static void send(String[] textParts) throws Exception {

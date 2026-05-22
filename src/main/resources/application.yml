@@ -12,4 +12,5 @@ clipboard-sync:
   websocket-path: ${CLIPBOARD_SYNC_WEBSOCKET_PATH:/ws/clipboard}
   allowed-origins: ${CLIPBOARD_SYNC_ALLOWED_ORIGINS:*}
   max-ciphertext-bytes: ${CLIPBOARD_SYNC_MAX_CIPHERTEXT_BYTES:65536}
+  device-public-keys-dir: ${CLIPBOARD_SYNC_DEVICE_PUBLIC_KEYS_DIR:}
   device-public-keys: {}

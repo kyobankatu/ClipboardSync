@@ -14,6 +14,7 @@ class ClipboardSyncPropertiesEnvironmentTest {
                 "/ws/clipboard",
                 new String[]{"*"},
                 128,
+                "",
                 Map.of("MACBOOK", "public-key")
         );
 

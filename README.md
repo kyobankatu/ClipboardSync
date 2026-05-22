@@ -58,6 +58,30 @@ Client environment variables:
 - `CLIPBOARD_SYNC_ED25519_PRIVATE_KEY`: Base64 encoded Ed25519 private key for this device.
 - `CLIPBOARD_SYNC_E2E_KEY`: Base64 encoded 32-byte XChaCha20-Poly1305 key shared by trusted clients.
 - `CLIPBOARD_SYNC_WEBSOCKET_PATH`: optional path included in the handshake signature. Defaults to the path in `CLIPBOARD_SYNC_SERVER_URL`.
+- `CLIPBOARD_SYNC_CLIENT_CONFIG`: optional path to a local client properties file.
+
+Client settings can also be stored in a local properties file.
+
+Default paths:
+
+- macOS/Linux: `~/.config/clipboardsync/client.properties`
+- Windows: `%APPDATA%\ClipboardSync\client.properties`
+
+Example:
+
+```properties
+serverUrl=wss://relay.example.com/ws/clipboard
+deviceId=MACBOOK
+ed25519PrivateKey=<client-only-private-key>
+e2eKey=<shared-e2e-key>
+websocketPath=/ws/clipboard
+```
+
+On macOS/Linux, restrict file permissions:
+
+```bash
+chmod 600 ~/.config/clipboardsync/client.properties
+```
 
 Listen for encrypted updates:
 

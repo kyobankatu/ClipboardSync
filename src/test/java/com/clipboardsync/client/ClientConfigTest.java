@@ -1,7 +1,10 @@
 package com.clipboardsync.client;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
@@ -11,6 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ClientConfigTest {
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void loadsRequiredValuesFromEnvironment() throws Exception {
@@ -34,6 +40,45 @@ class ClientConfigTest {
     void rejectsMissingRequiredValue() {
         assertThatThrownBy(() -> ClientConfig.fromEnvironment(Map.of()))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("CLIPBOARD_SYNC_SERVER_URL");
+                .hasMessageContaining("serverUrl");
+    }
+
+    @Test
+    void loadsValuesFromPropertiesFile() throws Exception {
+        KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        Path configPath = tempDir.resolve("client.properties");
+        Files.writeString(configPath, ""
+                + "serverUrl=wss://relay.example.com/ws/clipboard\n"
+                + "deviceId=mac\n"
+                + "ed25519PrivateKey=" + Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()) + "\n"
+                + "e2eKey=" + Base64.getEncoder().encodeToString(new byte[32]) + "\n");
+
+        ClientConfig config = ClientConfig.fromEnvironment(Map.of("CLIPBOARD_SYNC_CLIENT_CONFIG", configPath.toString()));
+
+        assertThat(config.serverUri().toString()).isEqualTo("wss://relay.example.com/ws/clipboard");
+        assertThat(config.deviceId()).isEqualTo("mac");
+    }
+
+    @Test
+    void environmentOverridesPropertiesFile() throws Exception {
+        KeyPair fileKeyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        KeyPair envKeyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        Path configPath = tempDir.resolve("client.properties");
+        Files.writeString(configPath, ""
+                + "serverUrl=wss://file.example.com/ws/clipboard\n"
+                + "deviceId=file-device\n"
+                + "ed25519PrivateKey=" + Base64.getEncoder().encodeToString(fileKeyPair.getPrivate().getEncoded()) + "\n"
+                + "e2eKey=" + Base64.getEncoder().encodeToString(new byte[32]) + "\n");
+
+        ClientConfig config = ClientConfig.fromEnvironment(Map.of(
+                "CLIPBOARD_SYNC_CLIENT_CONFIG", configPath.toString(),
+                "CLIPBOARD_SYNC_SERVER_URL", "wss://env.example.com/ws/clipboard",
+                "CLIPBOARD_SYNC_DEVICE_ID", "env-device",
+                "CLIPBOARD_SYNC_ED25519_PRIVATE_KEY", Base64.getEncoder().encodeToString(envKeyPair.getPrivate().getEncoded()),
+                "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32])
+        ));
+
+        assertThat(config.serverUri().toString()).isEqualTo("wss://env.example.com/ws/clipboard");
+        assertThat(config.deviceId()).isEqualTo("env-device");
     }
 }
