@@ -1,0 +1,11 @@
+.git
+.gradle
+.gradle-user-home
+build
+.agents
+.codex
+*.log
+.env
+.env.*
+*.secret.yaml
+kubeconfig*

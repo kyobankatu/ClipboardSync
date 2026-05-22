@@ -122,9 +122,9 @@
   - 初期候補は各端末に同じ共有鍵を手動設定する方式。
   - 共有鍵は環境変数、OSキーチェーン、または設定ファイルから読み込めるようにする。
   - 設定ファイルに保存する場合はファイル権限の確認を実装する。
-- サーバー側ログには暗号文、nonce、トークン、共有鍵、クリップボード本文を出さない。
+- サーバー側ログには暗号文、nonce、署名、公開鍵、共有鍵、クリップボード本文を出さない。
 - 復号失敗時はクリップボードへ反映せず、最小限のエラーログだけ出す。
-- 公開ドキュメントには実ドメイン、内部URL、トンネル識別子、トークン、共有鍵を書かない。
+- 公開ドキュメントには実ドメイン、内部URL、トンネル識別子、秘密鍵、共有鍵を書かない。
 - 設定例では `CLIPBOARD_SYNC_SERVER_URL` のような環境変数名とプレースホルダー値だけを使う。
 
 ## 7. Javadoc とドキュメント
@@ -146,7 +146,9 @@
   - 複数クライアント接続
   - Windows 相当から macOS 相当への配信
   - macOS 相当から Windows 相当への配信
-  - 不正トークン拒否
+  - 未登録端末の拒否
+  - 不正署名の拒否
+  - nonce 再利用の拒否
 - クライアントのクリップボード監視処理を分離し、テスト可能な形にする。
 - ループ防止のテストを追加する。
 - 空文字、大きい文字列、Unicode文字列のテストを追加する。
@@ -170,11 +172,181 @@
 8. Windows クライアントのクリップボード監視を実装する。
 9. macOS クライアントのクリップボード監視を実装する。
 10. ループ防止、再接続、設定ファイル対応を固める。
-11. 認証トークン対応を追加する。
+11. Ed25519 公開鍵認証を固める。
 12. Javadoc 生成確認を追加する。
 13. README に起動方法、設定項目、制限事項を追記する。
 
-## 10. 後回しにする項目
+## 10. CLI Client Implementation Plan
+
+The next implementation phase is a Java CLI client. The purpose is to validate the full protocol before implementing OS-specific clipboard watchers.
+
+### Goals
+
+- Connect to the relay server over WebSocket.
+- Authenticate as a registered device with an Ed25519 private key.
+- Encrypt outgoing clipboard text with XChaCha20-Poly1305.
+- Send encrypted `clipboard_update` messages to the relay.
+- Receive encrypted updates from other devices.
+- Decrypt received updates locally and print the plaintext to stdout.
+- Confirm that the relay never sees clipboard plaintext.
+- Confirm that the sender does not receive its own update back.
+
+### Package Structure
+
+- Create `src/main/java/com/clipboardsync/client`.
+- Keep client-only code separate from server relay code.
+- Reuse shared protocol and crypto classes where appropriate.
+
+### Client Configuration
+
+Create a client configuration model that can be loaded from command-line arguments or environment variables.
+
+Required values:
+
+- `serverUrl`: public relay WebSocket URL, for example a placeholder `wss://relay.example.com/ws/clipboard`.
+- `deviceId`: stable local device identifier.
+- `ed25519PrivateKey`: Base64 encoded Ed25519 private key for device authentication.
+- `e2eKey`: Base64 encoded 32-byte XChaCha20-Poly1305 key for clipboard encryption.
+- `websocketPath`: path used in the handshake signature.
+
+Do not commit real private keys, E2E keys, device IDs, domains, or tunnel details.
+
+### Key Generation Command
+
+Add a CLI command that generates local development keys.
+
+Example command:
+
+```bash
+./gradlew bootRun --args="client generate-keys"
+```
+
+The command should generate:
+
+- Ed25519 private key for the client device.
+- Ed25519 public key to register on the server.
+- XChaCha20-Poly1305 32-byte E2E key shared by trusted client devices.
+
+Output must clearly separate:
+
+- Values safe to register on the server.
+- Values that must stay only on client devices.
+
+### Handshake Signing
+
+Create a `DeviceHandshakeSigner` component.
+
+It should sign the exact same input that the server verifies:
+
+```text
+v1
+deviceId=<device-id>
+timestamp=<timestamp>
+nonce=<nonce>
+path=<websocket-path>
+```
+
+The signer should produce:
+
+- `X-Clipboard-Device-Id`
+- `X-Clipboard-Timestamp`
+- `X-Clipboard-Nonce`
+- `X-Clipboard-Signature`
+
+### WebSocket Client
+
+Create a `ClipboardRelayClient` component.
+
+Responsibilities:
+
+- Open a WebSocket connection with the signed authentication headers.
+- Serialize and send `ClipboardMessage` instances.
+- Parse received messages.
+- Ignore updates from the same `deviceId`.
+- Surface connection and protocol errors without logging secrets.
+- Keep reconnection minimal in the first version.
+
+### Manual Send Command
+
+Add a command for manually sending text.
+
+Example:
+
+```bash
+./gradlew bootRun --args="client send 'hello from mac'"
+```
+
+The command should:
+
+- Build a `clipboard_update` message.
+- Generate a new update ID.
+- Encrypt the text with XChaCha20-Poly1305.
+- Include deterministic associated data.
+- Send the message to the relay.
+
+### Listen Command
+
+Add a command that waits for incoming clipboard updates.
+
+Example:
+
+```bash
+./gradlew bootRun --args="client listen"
+```
+
+The command should:
+
+- Connect to the relay.
+- Wait for incoming encrypted updates.
+- Decrypt valid updates with the local E2E key.
+- Print plaintext to stdout.
+- Reject messages that fail decryption or metadata authentication.
+
+### Local Verification Flow
+
+Run two terminal sessions.
+
+Terminal A:
+
+```bash
+./gradlew bootRun --args="client listen"
+```
+
+Terminal B:
+
+```bash
+./gradlew bootRun --args="client send 'test clipboard text'"
+```
+
+Expected result:
+
+- Terminal A prints `test clipboard text`.
+- Terminal B does not receive its own update.
+- The server logs no plaintext.
+
+### Tests
+
+Add focused tests for:
+
+- Ed25519 key generation and public key export.
+- Handshake signing compatibility with server verification.
+- XChaCha20-Poly1305 encryption and decryption through the client path.
+- Associated data mismatch rejection.
+- Invalid private key handling.
+- Invalid E2E key handling.
+- Message serialization compatibility with the server protocol.
+
+### Out of Scope for This Phase
+
+- Native clipboard watching.
+- `pbcopy` / `pbpaste` integration.
+- PowerShell `Get-Clipboard` / `Set-Clipboard` integration.
+- Background daemon mode.
+- GUI.
+- Auto-start on login.
+- Production deployment changes.
+
+## 11. 後回しにする項目
 
 - クリップボード履歴
 - 画像やファイルの同期

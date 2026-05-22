@@ -1,9 +1,12 @@
 package com.clipboardsync;
 
+import com.clipboardsync.client.ClientCliApplication;
 import com.clipboardsync.config.ClipboardSyncProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+
+import java.util.Arrays;
 
 /**
  * Starts the ClipboardSync relay server.
@@ -27,6 +30,10 @@ public class ClipboardSyncApplication {
      * @param args command-line arguments passed by the runtime
      */
     public static void main(String[] args) {
+        if (args.length > 0 && "client".equals(args[0])) {
+            ClientCliApplication.run(Arrays.copyOfRange(args, 1, args.length));
+            return;
+        }
         SpringApplication.run(ClipboardSyncApplication.class, args);
     }
 }

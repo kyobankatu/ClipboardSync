@@ -39,4 +39,5 @@ application-local.properties
 
 # Docker / local runtime
 docker-compose.override.yml
+k8s/
 *.pid

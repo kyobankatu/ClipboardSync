@@ -62,6 +62,26 @@ class XChaCha20Poly1305ClipboardCipherTest {
                 .contains("sourceDeviceId=device-a");
     }
 
+    @Test
+    void buildsSameAssociatedDataFromFieldsAndMessage() {
+        ClipboardMessage message = new ClipboardMessage(
+                MessageType.CLIPBOARD_UPDATE,
+                "update-1",
+                "device-a",
+                Instant.parse("2026-05-21T00:00:00Z"),
+                PayloadType.TEXT,
+                new EncryptedPayload(CryptoAlgorithm.XCHACHA20_POLY1305, "bm9uY2U=", "Y2lwaGVy")
+        );
+
+        assertThat(ClipboardAssociatedData.fromMetadata(
+                message.type(),
+                message.updateId(),
+                message.sourceDeviceId(),
+                message.createdAt(),
+                message.payloadType()
+        )).isEqualTo(ClipboardAssociatedData.fromMessageMetadata(message));
+    }
+
     private static byte[] testKey(byte value) {
         byte[] key = new byte[XChaCha20Poly1305ClipboardCipher.KEY_SIZE_BYTES];
         for (int index = 0; index < key.length; index++) {
