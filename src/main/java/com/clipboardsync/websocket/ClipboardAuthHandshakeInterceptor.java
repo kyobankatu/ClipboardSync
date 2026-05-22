@@ -2,8 +2,6 @@ package com.clipboardsync.websocket;
 
 import com.clipboardsync.config.ClipboardSyncProperties;
 import com.clipboardsync.relay.ClipboardRelayService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -35,7 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ClipboardAuthHandshakeInterceptor.class);
     private static final String DEVICE_ID_HEADER = "X-Clipboard-Device-Id";
     private static final String TIMESTAMP_HEADER = "X-Clipboard-Timestamp";
     private static final String NONCE_HEADER = "X-Clipboard-Nonce";
@@ -104,7 +101,6 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
         Map<String, String> devicePublicKeys = properties.devicePublicKeys();
         String publicKey = devicePublicKeys.get(deviceId);
         if (!StringUtils.hasText(publicKey)) {
-            LOGGER.warn("Rejected clipboard handshake for unregistered deviceId={}", deviceId);
             return false;
         }
         HttpHeaders headers = request.getHeaders();
@@ -112,34 +108,16 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
         String nonce = headers.getFirst(NONCE_HEADER);
         String signature = headers.getFirst(SIGNATURE_HEADER);
         if (!StringUtils.hasText(timestamp) || !StringUtils.hasText(nonce) || !StringUtils.hasText(signature)) {
-            LOGGER.warn(
-                    "Rejected clipboard handshake for deviceId={} because required auth headers were missing: "
-                            + "timestampPresent={}, noncePresent={}, signaturePresent={}",
-                    deviceId,
-                    StringUtils.hasText(timestamp),
-                    StringUtils.hasText(nonce),
-                    StringUtils.hasText(signature)
-            );
             return false;
         }
         if (!isFresh(timestamp)) {
-            LOGGER.warn("Rejected clipboard handshake for deviceId={} because timestamp was stale: {}", deviceId, timestamp);
             return false;
         }
         String signingInput = signingInput(deviceId, timestamp, nonce, request.getURI().getRawPath());
         if (!verifySignature(publicKey, signingInput, signature)) {
-            LOGGER.warn(
-                    "Rejected clipboard handshake for deviceId={} because signature verification failed for path={}",
-                    deviceId,
-                    request.getURI().getRawPath()
-            );
             return false;
         }
-        boolean accepted = acceptNonce(deviceId, nonce);
-        if (!accepted) {
-            LOGGER.warn("Rejected clipboard handshake for deviceId={} because nonce was already used", deviceId);
-        }
-        return accepted;
+        return acceptNonce(deviceId, nonce);
     }
 
     private boolean isFresh(String timestamp) {
