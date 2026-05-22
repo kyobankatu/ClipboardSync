@@ -9,6 +9,7 @@ target/
 
 # Gradle
 .gradle/
+.gradle-user-home/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 
@@ -39,4 +40,3 @@ application-local.properties
 # Docker / local runtime
 docker-compose.override.yml
 *.pid
-
