@@ -6,6 +6,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.socket.WebSocketHandler;
@@ -48,6 +49,7 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
      *
      * @param properties relay runtime settings
      */
+    @Autowired
     public ClipboardAuthHandshakeInterceptor(ClipboardSyncProperties properties) {
         this(properties, Clock.systemUTC());
     }
