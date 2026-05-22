@@ -1,6 +1,9 @@
 package com.clipboardsync.client;
 
+import java.net.http.HttpResponse;
+import java.net.http.WebSocketHandshakeException;
 import java.util.Arrays;
+import java.util.concurrent.CompletionException;
 
 /**
  * Command-line entry point for development client operations.
@@ -31,9 +34,32 @@ public final class ClientCliApplication {
                 }
             }
         } catch (Exception exception) {
-            System.err.println("Client command failed: " + exception.getMessage());
+            System.err.println("Client command failed: " + describeFailure(exception));
             System.exit(1);
         }
+    }
+
+    private static String describeFailure(Throwable failure) {
+        Throwable cause = unwrap(failure);
+        if (cause instanceof WebSocketHandshakeException handshakeException) {
+            HttpResponse<?> response = handshakeException.getResponse();
+            return "WebSocket handshake failed with HTTP " + response.statusCode()
+                    + ". Check serverUrl, deviceId, registered public key, and clock synchronization.";
+        }
+        String message = cause.getMessage();
+        if (message == null || message.isBlank()) {
+            return cause.getClass().getName();
+        }
+        return message;
+    }
+
+    private static Throwable unwrap(Throwable failure) {
+        Throwable current = failure;
+        while ((current instanceof CompletionException || current instanceof java.util.concurrent.ExecutionException)
+                && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 
     private static void printGeneratedKeys() throws Exception {
