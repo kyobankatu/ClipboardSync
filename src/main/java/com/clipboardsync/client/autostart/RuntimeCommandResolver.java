@@ -30,9 +30,9 @@ public class RuntimeCommandResolver {
     public AutostartCommand resolve() {
         Path javaPath = Path.of(System.getProperty("java.home"), "bin", executable("java"));
         return new AutostartCommand(List.of(
-                javaPath.toAbsolutePath().toString(),
+                javaPath.toAbsolutePath().normalize().toString(),
                 "-jar",
-                jarPath.toAbsolutePath().toString(),
+                jarPath.toAbsolutePath().normalize().toString(),
                 "client",
                 "sync"
         ));

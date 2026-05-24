@@ -66,17 +66,18 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
 
     private String commandLine(AutostartCommand command) {
         String localAppData = environment.getOrDefault("LOCALAPPDATA", "");
-        StringBuilder builder = new StringBuilder();
-        for (String argument : command.arguments()) {
-            if (!builder.isEmpty()) {
+        StringBuilder builder = new StringBuilder("cmd.exe /c \"");
+        for (int index = 0; index < command.arguments().size(); index++) {
+            if (index > 0) {
                 builder.append(' ');
             }
-            builder.append(quote(argument));
+            builder.append(quote(command.arguments().get(index)));
         }
         if (!localAppData.isBlank()) {
             builder.append(" >> ").append(quote(localAppData + "\\ClipboardSync\\logs\\clipboardsync.out.log"));
             builder.append(" 2>> ").append(quote(localAppData + "\\ClipboardSync\\logs\\clipboardsync.err.log"));
         }
+        builder.append('"');
         return builder.toString();
     }
 
