@@ -16,7 +16,7 @@ public final class AutostartServiceFactory {
      * @return platform autostart service
      */
     public static AutostartService create() {
-        RuntimeCommandResolver commandResolver = new RuntimeCommandResolver(System.getenv());
+        RuntimeCommandResolver commandResolver = new RuntimeCommandResolver();
         ProcessRunner processRunner = new ProcessRunner();
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (os.contains("mac")) {

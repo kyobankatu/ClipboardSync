@@ -573,10 +573,9 @@ bob.WINDOWS
 - Test two groups can use the same `deviceId` without sharing messages.
 - Test `groupId` is included in encrypted associated data.
 
-## 15. Autostart and Bundled Runtime Plan
+## 15. Autostart Plan
 
-This phase makes the CLI client suitable for daily use without requiring users to start it manually
-or install Java separately.
+This phase makes the CLI client suitable for daily use without requiring users to start it manually.
 
 ### Implementation Order
 
@@ -584,8 +583,6 @@ or install Java separately.
 2. Support macOS login autostart with LaunchAgent.
 3. Support Windows login autostart with Task Scheduler.
 4. Add status and uninstall commands.
-5. Add a Java-runtime-bundled client distribution using JDK tools.
-6. Make autostart prefer the bundled launcher when available.
 
 ### CLI Commands
 
@@ -615,20 +612,9 @@ or install Java separately.
 
 ### Launcher Resolution
 
-- When running from a bundled distribution, autostart should call the distribution launcher.
-- When running from a packaged jar, autostart may call `java -jar <jar> client sync`.
+- Autostart should call `java -jar <jar> client sync`.
 - Reject autostart installation from Gradle `bootRun` because the runtime path is not stable.
-
-### Java-Free Client Distribution
-
-- Add a Gradle task that builds a client distribution containing:
-  - the Spring Boot executable jar
-  - a reduced Java runtime image created with `jlink`
-  - macOS/Linux launcher script
-  - Windows launcher script
-- The launcher scripts should set `CLIPBOARD_SYNC_LAUNCHER_PATH` so autostart can register the
-  stable launcher path instead of a system Java command.
-- Generate archive artifacts under `build/distributions`.
+- The client machine must have a compatible Java runtime installed.
 
 ### Tests
 
