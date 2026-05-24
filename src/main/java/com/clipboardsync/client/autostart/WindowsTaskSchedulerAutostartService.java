@@ -38,7 +38,9 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
     public void install() throws Exception {
         Path appDirectory = createAppDirectory();
         Path startScript = appDirectory.resolve("clipboardsync-start.cmd");
+        Path hiddenStartScript = appDirectory.resolve("clipboardsync-start.vbs");
         Files.writeString(startScript, startScript(commandResolver.resolve(), appDirectory), StandardCharsets.UTF_8);
+        Files.writeString(hiddenStartScript, hiddenStartScript(startScript), StandardCharsets.UTF_8);
         processRunner.run(List.of(
                 "schtasks",
                 "/Create",
@@ -47,7 +49,7 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
                 "/SC",
                 "ONLOGON",
                 "/TR",
-                quote(startScript.toString()),
+                "wscript.exe " + quote(hiddenStartScript.toString()),
                 "/F"
         ));
     }
@@ -82,6 +84,11 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
         return builder.toString();
     }
 
+    private String hiddenStartScript(Path startScript) {
+        return "Set WshShell = CreateObject(\"WScript.Shell\")\r\n"
+                + "WshShell.Run " + visualBasicString(quote(startScript.toString())) + ", 0, False\r\n";
+    }
+
     private Path createAppDirectory() throws Exception {
         String localAppData = environment.getOrDefault("LOCALAPPDATA", "");
         if (localAppData.isBlank()) {
@@ -94,5 +101,9 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
 
     private static String quote(String value) {
         return "\"" + value.replace("\"", "\\\"") + "\"";
+    }
+
+    private static String visualBasicString(String value) {
+        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 }

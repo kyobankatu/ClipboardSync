@@ -78,7 +78,12 @@ public class MacLaunchAgentAutostartService implements AutostartService {
 
     private String plist(AutostartCommand command) {
         StringBuilder arguments = new StringBuilder();
-        for (String argument : command.arguments()) {
+        List<String> commandArguments = new ArrayList<>(command.arguments());
+        int jarFlagIndex = commandArguments.indexOf("-jar");
+        if (jarFlagIndex > 0) {
+            commandArguments.add(jarFlagIndex, "-Dapple.awt.UIElement=true");
+        }
+        for (String argument : commandArguments) {
             arguments.append("      <string>").append(xml(argument)).append("</string>\n");
         }
         return """

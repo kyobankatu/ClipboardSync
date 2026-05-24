@@ -621,3 +621,38 @@ This phase makes the CLI client suitable for daily use without requiring users t
 - Test OS-specific autostart command generation without mutating the real machine.
 - Test packaged launcher resolution.
 - Test Gradle/bootRun autostart installation is rejected with a clear error.
+
+## 16. Background-Only Client Execution Plan
+
+This phase removes visible desktop artifacts from login autostart.
+
+### Goals
+
+- Avoid showing a Java app icon in the macOS Dock while clipboard sync is running.
+- Avoid opening a terminal window on Windows while clipboard sync is running.
+- Keep `client sync` usable from a normal terminal for debugging.
+
+### macOS Clipboard
+
+- Add a macOS-specific `ClipboardService` using `pbpaste` and `pbcopy`.
+- Use the macOS service instead of AWT when `os.name` indicates macOS.
+- Keep `AwtClipboardService` as the Windows and fallback implementation.
+- Avoid initializing AWT on macOS during normal `client sync`.
+
+### macOS Autostart
+
+- Add `-Dapple.awt.UIElement=true` to LaunchAgent `ProgramArguments` as an additional guard.
+- Continue writing logs to `~/.local/state/clipboardsync`.
+
+### Windows Autostart
+
+- Generate `%LOCALAPPDATA%\ClipboardSync\clipboardsync-start.cmd` with the Java command.
+- Generate `%LOCALAPPDATA%\ClipboardSync\clipboardsync-start.vbs` that runs the `.cmd` hidden.
+- Register Task Scheduler to run `wscript.exe <vbs-path>` instead of the `.cmd` directly.
+- Continue writing logs to `%LOCALAPPDATA%\ClipboardSync\logs`.
+
+### Tests
+
+- Test macOS clipboard implementation through injectable process execution.
+- Test platform clipboard service selection.
+- Test Windows autostart generates both `.cmd` and `.vbs` launchers.

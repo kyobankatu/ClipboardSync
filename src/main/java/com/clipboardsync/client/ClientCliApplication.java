@@ -107,7 +107,7 @@ public final class ClientCliApplication {
     private static void sync() throws Exception {
         ClientConfig config = ClientConfig.fromEnvironment();
         ClipboardRelayClient client = new ClipboardRelayClient(config);
-        ClipboardService clipboardService = new AwtClipboardService();
+        ClipboardService clipboardService = ClipboardServiceFactory.create();
         ClipboardWatcher clipboardWatcher = new ClipboardWatcher(clipboardService, config.clipboardPollInterval());
         new ClipboardSyncRunner(client, clipboardService, clipboardWatcher).run();
     }
