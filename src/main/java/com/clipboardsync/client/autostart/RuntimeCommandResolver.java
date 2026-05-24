@@ -2,9 +2,9 @@ package com.clipboardsync.client.autostart;
 
 import com.clipboardsync.ClipboardSyncApplication;
 
-import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Resolves the stable command that should be registered for login autostart.
@@ -35,22 +35,26 @@ public class RuntimeCommandResolver {
     }
 
     private Path currentJarPath() {
-        try {
-            URI location = ClipboardSyncApplication.class
-                    .getProtectionDomain()
-                    .getCodeSource()
-                    .getLocation()
-                    .toURI();
-            Path path = Path.of(location);
-            if (path.toString().endsWith(".jar")) {
-                return path;
+        return jarPathFromProcessArguments()
+                .orElseThrow(() -> new IllegalStateException(
+                        "install-autostart must be run with java -jar <path-to-jar>"
+                ));
+    }
+
+    private Optional<Path> jarPathFromProcessArguments() {
+        return ProcessHandle.current()
+                .info()
+                .arguments()
+                .flatMap(RuntimeCommandResolver::jarPathFromArguments);
+    }
+
+    private static Optional<Path> jarPathFromArguments(String[] arguments) {
+        for (int index = 0; index < arguments.length - 1; index++) {
+            if ("-jar".equals(arguments[index]) && arguments[index + 1].endsWith(".jar")) {
+                return Optional.of(Path.of(arguments[index + 1]));
             }
-            throw new IllegalStateException("install-autostart must be run from a packaged jar");
-        } catch (IllegalStateException exception) {
-            throw exception;
-        } catch (Exception exception) {
-            throw new IllegalStateException("Failed to resolve packaged application path", exception);
         }
+        return Optional.empty();
     }
 
     private static String executable(String name) {
