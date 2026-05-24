@@ -5,6 +5,7 @@ import com.clipboardsync.client.autostart.AutostartServiceFactory;
 
 import java.net.http.HttpResponse;
 import java.net.http.WebSocketHandshakeException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.CompletionException;
 
@@ -32,7 +33,7 @@ public final class ClientCliApplication {
                 case "send" -> send(Arrays.copyOfRange(args, 1, args.length));
                 case "listen" -> listen();
                 case "sync" -> sync();
-                case "install-autostart" -> installAutostart();
+                case "install-autostart" -> installAutostart(Arrays.copyOfRange(args, 1, args.length));
                 case "uninstall-autostart" -> uninstallAutostart();
                 case "autostart-status" -> autostartStatus();
                 default -> {
@@ -111,20 +112,23 @@ public final class ClientCliApplication {
         new ClipboardSyncRunner(client, clipboardService, clipboardWatcher).run();
     }
 
-    private static void installAutostart() throws Exception {
-        AutostartService autostartService = AutostartServiceFactory.create();
+    private static void installAutostart(String[] args) throws Exception {
+        if (args.length != 1) {
+            throw new IllegalArgumentException("install-autostart requires a jar path");
+        }
+        AutostartService autostartService = AutostartServiceFactory.create(Path.of(args[0]));
         autostartService.install();
         System.out.println("Autostart installed");
     }
 
     private static void uninstallAutostart() throws Exception {
-        AutostartService autostartService = AutostartServiceFactory.create();
+        AutostartService autostartService = AutostartServiceFactory.create(Path.of("placeholder.jar"));
         autostartService.uninstall();
         System.out.println("Autostart uninstalled");
     }
 
     private static void autostartStatus() throws Exception {
-        AutostartService autostartService = AutostartServiceFactory.create();
+        AutostartService autostartService = AutostartServiceFactory.create(Path.of("placeholder.jar"));
         System.out.println(autostartService.status());
     }
 
@@ -134,7 +138,7 @@ public final class ClientCliApplication {
         System.out.println("  client send <text>");
         System.out.println("  client listen");
         System.out.println("  client sync");
-        System.out.println("  client install-autostart");
+        System.out.println("  client install-autostart <jar-path>");
         System.out.println("  client uninstall-autostart");
         System.out.println("  client autostart-status");
     }

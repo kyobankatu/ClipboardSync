@@ -586,7 +586,7 @@ This phase makes the CLI client suitable for daily use without requiring users t
 
 ### CLI Commands
 
-- Add `client install-autostart`.
+- Add `client install-autostart <jar-path>`.
 - Add `client uninstall-autostart`.
 - Add `client autostart-status`.
 - Keep these commands separate from `client sync`.
@@ -612,8 +612,8 @@ This phase makes the CLI client suitable for daily use without requiring users t
 
 ### Launcher Resolution
 
-- Autostart should call `java -jar <jar> client sync`.
-- Reject autostart installation from Gradle `bootRun` because the runtime path is not stable.
+- Autostart should call `java -jar <jar-path> client sync`.
+- Require the jar path as an explicit argument instead of inferring it from the current process.
 - The client machine must have a compatible Java runtime installed.
 
 ### Tests

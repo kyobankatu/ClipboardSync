@@ -1,5 +1,6 @@
 package com.clipboardsync.client.autostart;
 
+import java.nio.file.Path;
 import java.util.Locale;
 
 /**
@@ -13,10 +14,11 @@ public final class AutostartServiceFactory {
     /**
      * Creates an autostart service for the current operating system.
      *
+     * @param jarPath packaged jar to start at login
      * @return platform autostart service
      */
-    public static AutostartService create() {
-        RuntimeCommandResolver commandResolver = new RuntimeCommandResolver();
+    public static AutostartService create(Path jarPath) {
+        RuntimeCommandResolver commandResolver = new RuntimeCommandResolver(jarPath);
         ProcessRunner processRunner = new ProcessRunner();
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
         if (os.contains("mac")) {
