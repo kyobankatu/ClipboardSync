@@ -1,6 +1,7 @@
 package com.clipboardsync.client;
 
 import java.net.http.WebSocket;
+import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -13,6 +14,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * update.</p>
  */
 public class ClipboardSyncRunner {
+
+    private static final Duration RECONNECT_DELAY = Duration.ofSeconds(5);
 
     private final ClipboardRelayClient relayClient;
     private final ClipboardService clipboardService;
@@ -37,32 +40,53 @@ public class ClipboardSyncRunner {
     }
 
     /**
-     * Starts synchronization and blocks until the WebSocket closes or the process is interrupted.
+     * Starts synchronization and blocks until the process is interrupted.
      *
-     * @throws Exception when the initial relay connection cannot be established
+     * <p>If the relay connection closes or fails, the runner waits briefly and reconnects instead
+     * of exiting. This keeps login autostart processes alive across network changes, idle tunnel
+     * timeouts, and relay restarts.</p>
      */
-    public void run() throws Exception {
-        CountDownLatch closed = new CountDownLatch(1);
-        AtomicBoolean running = new AtomicBoolean(true);
-        WebSocket webSocket = relayClient.connect(
-                this::applyRemoteText,
-                () -> {
-                    running.set(false);
-                    closed.countDown();
-                }
-        );
+    public void run() {
+        AtomicBoolean stopping = new AtomicBoolean(false);
+        AtomicReference<WebSocket> activeWebSocket = new AtomicReference<>();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            running.set(false);
-            webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "shutdown");
+            stopping.set(true);
+            WebSocket webSocket = activeWebSocket.get();
+            if (webSocket != null) {
+                webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "shutdown");
+            }
         }));
-        while (running.get()) {
-            clipboardWatcher.poll().ifPresent(text -> sendIfNotSuppressed(webSocket, text));
-            if (!sleep()) {
-                running.set(false);
+        while (!stopping.get()) {
+            CountDownLatch closed = new CountDownLatch(1);
+            try {
+                WebSocket webSocket = relayClient.connect(this::applyRemoteText, closed::countDown);
+                activeWebSocket.set(webSocket);
+                runUntilDisconnected(webSocket, closed, stopping);
+            } catch (Exception exception) {
+                System.err.println("Clipboard sync connection failed; retrying");
+            } finally {
+                activeWebSocket.set(null);
+            }
+            if (!stopping.get() && !sleep(RECONNECT_DELAY)) {
+                stopping.set(true);
+            }
+        }
+    }
+
+    private void runUntilDisconnected(WebSocket webSocket, CountDownLatch closed, AtomicBoolean stopping) {
+        while (!stopping.get() && closed.getCount() > 0) {
+            try {
+                clipboardWatcher.poll().ifPresent(text -> sendIfNotSuppressed(webSocket, text));
+            } catch (RuntimeException exception) {
+                System.err.println("Clipboard sync send failed; reconnecting");
+                webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "reconnect");
+                return;
+            }
+            if (!sleep(clipboardWatcher.pollInterval())) {
+                stopping.set(true);
                 webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "interrupted");
             }
         }
-        closed.await();
     }
 
     private void applyRemoteText(String text) {
@@ -82,9 +106,9 @@ public class ClipboardSyncRunner {
         relayClient.send(webSocket, text);
     }
 
-    private boolean sleep() {
+    private boolean sleep(Duration duration) {
         try {
-            Thread.sleep(clipboardWatcher.pollInterval().toMillis());
+            Thread.sleep(duration.toMillis());
             return true;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
