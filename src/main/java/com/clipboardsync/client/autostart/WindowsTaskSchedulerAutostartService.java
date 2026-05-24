@@ -2,6 +2,7 @@ package com.clipboardsync.client.autostart;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -35,7 +36,9 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
 
     @Override
     public void install() throws Exception {
-        createLogDirectory();
+        Path appDirectory = createAppDirectory();
+        Path startScript = appDirectory.resolve("clipboardsync-start.cmd");
+        Files.writeString(startScript, startScript(commandResolver.resolve(), appDirectory), StandardCharsets.UTF_8);
         processRunner.run(List.of(
                 "schtasks",
                 "/Create",
@@ -44,7 +47,7 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
                 "/SC",
                 "ONLOGON",
                 "/TR",
-                commandLine(commandResolver.resolve()),
+                quote(startScript.toString()),
                 "/F"
         ));
     }
@@ -64,28 +67,29 @@ public class WindowsTaskSchedulerAutostartService implements AutostartService {
         }
     }
 
-    private String commandLine(AutostartCommand command) {
-        String localAppData = environment.getOrDefault("LOCALAPPDATA", "");
-        StringBuilder builder = new StringBuilder("cmd.exe /c \"");
+    private String startScript(AutostartCommand command, Path appDirectory) {
+        Path logDirectory = appDirectory.resolve("logs");
+        StringBuilder builder = new StringBuilder("@echo off\r\n");
         for (int index = 0; index < command.arguments().size(); index++) {
             if (index > 0) {
                 builder.append(' ');
             }
             builder.append(quote(command.arguments().get(index)));
         }
-        if (!localAppData.isBlank()) {
-            builder.append(" >> ").append(quote(localAppData + "\\ClipboardSync\\logs\\clipboardsync.out.log"));
-            builder.append(" 2>> ").append(quote(localAppData + "\\ClipboardSync\\logs\\clipboardsync.err.log"));
-        }
-        builder.append('"');
+        builder.append(" >> ").append(quote(logDirectory.resolve("clipboardsync.out.log").toString()));
+        builder.append(" 2>> ").append(quote(logDirectory.resolve("clipboardsync.err.log").toString()));
+        builder.append("\r\n");
         return builder.toString();
     }
 
-    private void createLogDirectory() throws Exception {
+    private Path createAppDirectory() throws Exception {
         String localAppData = environment.getOrDefault("LOCALAPPDATA", "");
-        if (!localAppData.isBlank()) {
-            Files.createDirectories(Path.of(localAppData, "ClipboardSync", "logs"));
+        if (localAppData.isBlank()) {
+            throw new IllegalStateException("LOCALAPPDATA is required to install Windows autostart");
         }
+        Path appDirectory = Path.of(localAppData, "ClipboardSync");
+        Files.createDirectories(appDirectory.resolve("logs"));
+        return appDirectory;
     }
 
     private static String quote(String value) {
