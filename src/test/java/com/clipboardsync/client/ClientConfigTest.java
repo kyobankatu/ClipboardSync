@@ -34,6 +34,7 @@ class ClientConfigTest {
         assertThat(config.websocketPath()).isEqualTo("/ws/clipboard");
         assertThat(config.deviceId()).isEqualTo("mac");
         assertThat(config.e2eKey()).hasSize(32);
+        assertThat(config.clipboardPollInterval().toMillis()).isEqualTo(500);
     }
 
     @Test
@@ -51,12 +52,14 @@ class ClientConfigTest {
                 + "serverUrl=wss://relay.example.com/ws/clipboard\n"
                 + "deviceId=mac\n"
                 + "ed25519PrivateKey=" + Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()) + "\n"
-                + "e2eKey=" + Base64.getEncoder().encodeToString(new byte[32]) + "\n");
+                + "e2eKey=" + Base64.getEncoder().encodeToString(new byte[32]) + "\n"
+                + "clipboardPollIntervalMillis=750\n");
 
         ClientConfig config = ClientConfig.fromEnvironment(Map.of("CLIPBOARD_SYNC_CLIENT_CONFIG", configPath.toString()));
 
         assertThat(config.serverUri().toString()).isEqualTo("wss://relay.example.com/ws/clipboard");
         assertThat(config.deviceId()).isEqualTo("mac");
+        assertThat(config.clipboardPollInterval().toMillis()).isEqualTo(750);
     }
 
     @Test
@@ -75,10 +78,28 @@ class ClientConfigTest {
                 "CLIPBOARD_SYNC_SERVER_URL", "wss://env.example.com/ws/clipboard",
                 "CLIPBOARD_SYNC_DEVICE_ID", "env-device",
                 "CLIPBOARD_SYNC_ED25519_PRIVATE_KEY", Base64.getEncoder().encodeToString(envKeyPair.getPrivate().getEncoded()),
-                "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32])
+                "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32]),
+                "CLIPBOARD_SYNC_CLIPBOARD_POLL_INTERVAL_MILLIS", "250"
         ));
 
         assertThat(config.serverUri().toString()).isEqualTo("wss://env.example.com/ws/clipboard");
         assertThat(config.deviceId()).isEqualTo("env-device");
+        assertThat(config.clipboardPollInterval().toMillis()).isEqualTo(250);
+    }
+
+    @Test
+    void rejectsInvalidClipboardPollInterval() throws Exception {
+        KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        Map<String, String> environment = Map.of(
+                "CLIPBOARD_SYNC_SERVER_URL", "wss://relay.example.com/ws/clipboard",
+                "CLIPBOARD_SYNC_DEVICE_ID", "mac",
+                "CLIPBOARD_SYNC_ED25519_PRIVATE_KEY", Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()),
+                "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32]),
+                "CLIPBOARD_SYNC_CLIPBOARD_POLL_INTERVAL_MILLIS", "0"
+        );
+
+        assertThatThrownBy(() -> ClientConfig.fromEnvironment(environment))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("positive");
     }
 }

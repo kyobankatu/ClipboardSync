@@ -9,6 +9,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Properties;
@@ -22,15 +23,18 @@ import java.util.Set;
  * @param deviceId stable local device identifier
  * @param ed25519PrivateKey private key used only on this client device
  * @param e2eKey raw XChaCha20-Poly1305 key shared by trusted client devices
+ * @param clipboardPollInterval interval between local clipboard polling attempts
  */
 public record ClientConfig(
         URI serverUri,
         String websocketPath,
         String deviceId,
         PrivateKey ed25519PrivateKey,
-        byte[] e2eKey
+        byte[] e2eKey,
+        Duration clipboardPollInterval
 ) {
     private static final String DEFAULT_WEBSOCKET_PATH = "/ws/clipboard";
+    private static final Duration DEFAULT_CLIPBOARD_POLL_INTERVAL = Duration.ofMillis(500);
     private static final String CONFIG_PATH_ENV = "CLIPBOARD_SYNC_CLIENT_CONFIG";
 
     /**
@@ -65,7 +69,13 @@ public record ClientConfig(
         if (websocketPath == null || websocketPath.isBlank()) {
             websocketPath = pathOrDefault(serverUri);
         }
-        return new ClientConfig(serverUri, websocketPath, deviceId, privateKey, e2eKey);
+        Duration clipboardPollInterval = duration(
+                environment,
+                fileProperties,
+                "CLIPBOARD_SYNC_CLIPBOARD_POLL_INTERVAL_MILLIS",
+                "clipboardPollIntervalMillis"
+        );
+        return new ClientConfig(serverUri, websocketPath, deviceId, privateKey, e2eKey, clipboardPollInterval);
     }
 
     private static String required(Map<String, String> environment, Properties properties, String envName, String propertyName) {
@@ -87,6 +97,28 @@ public record ClientConfig(
     private static String pathOrDefault(URI serverUri) {
         String path = serverUri.getRawPath();
         return path == null || path.isBlank() ? DEFAULT_WEBSOCKET_PATH : path;
+    }
+
+    private static Duration duration(
+            Map<String, String> environment,
+            Properties properties,
+            String envName,
+            String propertyName
+    ) {
+        String value = value(environment, properties, envName, propertyName);
+        if (value == null || value.isBlank()) {
+            return DEFAULT_CLIPBOARD_POLL_INTERVAL;
+        }
+        try {
+            long millis = Long.parseLong(value);
+            if (millis <= 0) {
+                throw new IllegalArgumentException("Client configuration value must be positive: " + propertyName);
+            }
+            return Duration.ofMillis(millis);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("Client configuration value must be a number of milliseconds: "
+                    + propertyName, exception);
+        }
     }
 
     private static PrivateKey decodePrivateKey(String privateKeyBase64) throws GeneralSecurityException {

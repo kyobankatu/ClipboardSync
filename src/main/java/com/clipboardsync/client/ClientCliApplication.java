@@ -28,6 +28,7 @@ public final class ClientCliApplication {
                 case "generate-keys" -> printGeneratedKeys();
                 case "send" -> send(Arrays.copyOfRange(args, 1, args.length));
                 case "listen" -> listen();
+                case "sync" -> sync();
                 default -> {
                     System.err.println("Unknown client command: " + args[0]);
                     printUsage();
@@ -77,6 +78,7 @@ public final class ClientCliApplication {
         System.out.println("ed25519PrivateKey=" + keys.ed25519PrivateKey());
         System.out.println("e2eKey=" + keys.e2eKey());
         System.out.println("websocketPath=/ws/clipboard");
+        System.out.println("clipboardPollIntervalMillis=500");
     }
 
     private static void send(String[] textParts) throws Exception {
@@ -94,10 +96,19 @@ public final class ClientCliApplication {
         client.listen();
     }
 
+    private static void sync() throws Exception {
+        ClientConfig config = ClientConfig.fromEnvironment();
+        ClipboardRelayClient client = new ClipboardRelayClient(config);
+        ClipboardService clipboardService = new AwtClipboardService();
+        ClipboardWatcher clipboardWatcher = new ClipboardWatcher(clipboardService, config.clipboardPollInterval());
+        new ClipboardSyncRunner(client, clipboardService, clipboardWatcher).run();
+    }
+
     private static void printUsage() {
         System.out.println("Usage:");
         System.out.println("  client generate-keys");
         System.out.println("  client send <text>");
         System.out.println("  client listen");
+        System.out.println("  client sync");
     }
 }

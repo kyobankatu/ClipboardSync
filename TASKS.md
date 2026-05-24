@@ -424,3 +424,75 @@ websocketPath=/ws/clipboard
 - Web UI
 - 管理API
 - 永続化
+
+## 13. Native Text Clipboard Sync Plan
+
+This phase turns the development CLI client into a usable text clipboard synchronizer for macOS and Windows.
+
+### Goals
+
+- Add a `client sync` command.
+- Read local text clipboard changes from the operating system.
+- Encrypt local text changes and send them through the existing relay protocol.
+- Decrypt remote text updates and write them into the local operating system clipboard.
+- Prevent remote clipboard writes from being sent back to the relay as new local updates.
+- Keep the implementation testable by separating clipboard access from synchronization logic.
+
+### Clipboard Abstraction
+
+- Add a `ClipboardService` interface.
+- Expose `readText()` for reading the current text clipboard value.
+- Expose `writeText(String text)` for writing text into the clipboard.
+- Return an empty result when the clipboard does not currently contain text.
+- Do not support images, files, rich text, or clipboard history in this phase.
+
+### AWT Clipboard Implementation
+
+- Add an `AwtClipboardService` implementation using `java.awt.Toolkit` and `java.awt.datatransfer`.
+- Use `DataFlavor.stringFlavor` only.
+- Detect headless environments and fail with a clear message.
+- Keep clipboard plaintext out of logs.
+
+### Clipboard Watcher
+
+- Add a polling `ClipboardWatcher`.
+- Make the poll interval configurable.
+- Default to a conservative interval such as 500 milliseconds.
+- Emit a change only when the local clipboard text differs from the last observed text.
+- Ignore empty or non-text clipboard values for the first implementation.
+- Keep the watcher independent from WebSocket code so it can be unit tested with fake clipboard services.
+
+### Sync Runner
+
+- Add a `ClipboardSyncRunner` that combines:
+  - `ClipboardRelayClient`
+  - `ClipboardWatcher`
+  - `ClipboardService`
+- Maintain a persistent WebSocket connection.
+- Send local clipboard changes as encrypted `clipboard_update` messages.
+- Apply decrypted remote updates to the local clipboard.
+- Stop cleanly when the WebSocket closes or the process is interrupted.
+
+### Loop Prevention
+
+- Track text written from remote updates.
+- When the watcher sees the same value immediately after a remote write, suppress sending it back.
+- Continue sending future user-initiated changes even when they match older remote values after an intervening local value.
+- Ignore messages whose `sourceDeviceId` matches the local device ID.
+
+### Client Configuration
+
+- Add optional client properties:
+  - `clipboardPollIntervalMillis`
+- Add environment override:
+  - `CLIPBOARD_SYNC_CLIPBOARD_POLL_INTERVAL_MILLIS`
+- Validate that the poll interval is positive.
+- Keep existing file-based key and URL configuration behavior.
+
+### Tests
+
+- Add tests for `ClipboardWatcher` using a fake clipboard implementation.
+- Add tests for loop suppression in the sync runner.
+- Add tests that the poll interval is loaded from file and can be overridden by environment variables.
+- Add tests that invalid poll intervals fail clearly.
+- Continue running both unit tests and Javadoc generation after implementation.

@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 /**
  * Minimal WebSocket client for sending and receiving encrypted clipboard updates.
@@ -58,9 +59,23 @@ public class ClipboardRelayClient {
     public void send(String text) throws Exception {
         WebSocket webSocket = connect(new WebSocket.Listener() {
         });
-        ClipboardMessage message = encryptedMessage(text);
-        webSocket.sendText(objectMapper.writeValueAsString(message), true).join();
+        send(webSocket, text);
         webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "sent").join();
+    }
+
+    /**
+     * Sends a single encrypted clipboard update through an existing WebSocket connection.
+     *
+     * @param webSocket open WebSocket connection
+     * @param text plaintext clipboard text to encrypt locally
+     */
+    public void send(WebSocket webSocket, String text) {
+        try {
+            ClipboardMessage message = encryptedMessage(text);
+            webSocket.sendText(objectMapper.writeValueAsString(message), true).join();
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to send encrypted clipboard update", exception);
+        }
     }
 
     /**
@@ -70,8 +85,20 @@ public class ClipboardRelayClient {
      */
     public void listen() throws Exception {
         CountDownLatch closed = new CountDownLatch(1);
-        connect(new PrintingListener(closed));
+        connect(System.out::println, closed::countDown);
         closed.await();
+    }
+
+    /**
+     * Opens a relay WebSocket connection and decrypts incoming updates for the provided callback.
+     *
+     * @param incomingText receives plaintext from other devices after local decryption
+     * @param closedCallback invoked when the WebSocket closes or fails
+     * @return open WebSocket connection
+     * @throws Exception if the initial connection fails
+     */
+    public WebSocket connect(Consumer<String> incomingText, Runnable closedCallback) throws Exception {
+        return connect(new DecryptingListener(incomingText, closedCallback));
     }
 
     private WebSocket connect(WebSocket.Listener listener) throws Exception {
@@ -112,7 +139,7 @@ public class ClipboardRelayClient {
         );
     }
 
-    private void handleIncoming(String json) {
+    private void handleIncoming(String json, Consumer<String> incomingText) {
         try {
             ClipboardMessage message = objectMapper.readValue(json, ClipboardMessage.class);
             if (Objects.equals(message.sourceDeviceId(), config.deviceId())) {
@@ -120,7 +147,7 @@ public class ClipboardRelayClient {
             }
             String plaintext = new XChaCha20Poly1305ClipboardCipher(config.e2eKey())
                     .decryptText(message.payload(), ClipboardAssociatedData.fromMessageMetadata(message));
-            System.out.println(plaintext);
+            incomingText.accept(plaintext);
         } catch (Exception exception) {
             System.err.println("Rejected incoming clipboard update");
         }
@@ -132,13 +159,15 @@ public class ClipboardRelayClient {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
-    private class PrintingListener implements WebSocket.Listener {
+    private class DecryptingListener implements WebSocket.Listener {
 
-        private final CountDownLatch closed;
+        private final Consumer<String> incomingText;
+        private final Runnable closedCallback;
         private final StringBuilder buffer = new StringBuilder();
 
-        private PrintingListener(CountDownLatch closed) {
-            this.closed = closed;
+        private DecryptingListener(Consumer<String> incomingText, Runnable closedCallback) {
+            this.incomingText = incomingText;
+            this.closedCallback = closedCallback;
         }
 
         @Override
@@ -150,7 +179,7 @@ public class ClipboardRelayClient {
         public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
             buffer.append(data);
             if (last) {
-                handleIncoming(buffer.toString());
+                handleIncoming(buffer.toString(), incomingText);
                 buffer.setLength(0);
             }
             webSocket.request(1);
@@ -159,14 +188,14 @@ public class ClipboardRelayClient {
 
         @Override
         public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
-            closed.countDown();
+            closedCallback.run();
             return null;
         }
 
         @Override
         public void onError(WebSocket webSocket, Throwable error) {
             System.err.println("WebSocket error: " + error.getMessage());
-            closed.countDown();
+            closedCallback.run();
         }
     }
 }
