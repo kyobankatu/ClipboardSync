@@ -496,3 +496,79 @@ This phase turns the development CLI client into a usable text clipboard synchro
 - Add tests that the poll interval is loaded from file and can be overridden by environment variables.
 - Add tests that invalid poll intervals fail clearly.
 - Continue running both unit tests and Javadoc generation after implementation.
+
+## 14. Multi-User Group Isolation Plan
+
+This phase separates relay routing and client authentication by group so one server can support
+multiple independent users or device sets.
+
+### Goals
+
+- Add a required `groupId` to client configuration.
+- Authenticate a device as a member of a specific group.
+- Relay clipboard updates only to sessions in the same group.
+- Keep E2E keys group-local; the server still never receives E2E keys.
+- Allow the same `deviceId` to exist in different groups, for example `alice/MACBOOK` and `bob/MACBOOK`.
+
+### Handshake Protocol
+
+- Add `X-Clipboard-Group-Id` to the WebSocket handshake.
+- Add `groupId` to the Ed25519 signing input.
+- Reject a handshake when the server has no public key for the `groupId/deviceId` pair.
+- Use nonce replay protection per `groupId/deviceId`.
+
+Signing input:
+
+```text
+v1
+groupId=<group-id>
+deviceId=<device-id>
+timestamp=<timestamp>
+nonce=<nonce>
+path=<websocket-path>
+```
+
+### Message Protocol
+
+- Add `groupId` to `ClipboardMessage`.
+- Require `groupId` and `sourceDeviceId` to match the authenticated WebSocket session.
+- Include `groupId` in XChaCha20-Poly1305 additional authenticated data.
+- Keep `groupId` as routing metadata, not as a secret.
+
+### Server Public Key Configuration
+
+- Treat public key entries as `groupId.deviceId` or `groupId/deviceId`.
+- For ConfigMap volume mounts, prefer file names such as:
+
+```text
+alice.MACBOOK
+alice.WINDOWS
+bob.MACBOOK
+bob.WINDOWS
+```
+
+- Continue supporting existing flat device files by mapping them to a `default` group for local
+  single-user compatibility.
+
+### Relay State
+
+- Store active sessions by `groupId/deviceId`.
+- Store latest encrypted message per group.
+- Replay only the latest message for the connecting session's group.
+- Broadcast only to sessions in the sender's group.
+
+### Client Configuration
+
+- Add required property:
+  - `groupId`
+- Add environment override:
+  - `CLIPBOARD_SYNC_GROUP_ID`
+- Reject clients that omit `groupId`.
+- Update generated config templates to include `groupId=<GROUP_ID>`.
+
+### Tests
+
+- Test handshake signature compatibility with `groupId`.
+- Test unregistered group/device combinations are rejected.
+- Test two groups can use the same `deviceId` without sharing messages.
+- Test `groupId` is included in encrypted associated data.

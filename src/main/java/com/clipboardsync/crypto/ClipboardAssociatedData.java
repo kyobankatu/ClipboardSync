@@ -25,6 +25,7 @@ public final class ClipboardAssociatedData {
         return fromMetadata(
                 message.type(),
                 message.updateId(),
+                message.groupId(),
                 message.sourceDeviceId(),
                 message.createdAt(),
                 message.payloadType()
@@ -36,6 +37,7 @@ public final class ClipboardAssociatedData {
      *
      * @param type message type
      * @param updateId unique update identifier
+     * @param groupId synchronization group identifier
      * @param sourceDeviceId sender device identifier
      * @param createdAt sender-side creation timestamp
      * @param payloadType clipboard payload type before encryption
@@ -44,6 +46,7 @@ public final class ClipboardAssociatedData {
     public static byte[] fromMetadata(
             MessageType type,
             String updateId,
+            String groupId,
             String sourceDeviceId,
             Instant createdAt,
             PayloadType payloadType
@@ -51,6 +54,7 @@ public final class ClipboardAssociatedData {
         String value = "v1\n"
                 + "type=" + type.wireName() + "\n"
                 + "updateId=" + updateId + "\n"
+                + "groupId=" + groupId + "\n"
                 + "sourceDeviceId=" + sourceDeviceId + "\n"
                 + "createdAt=" + createdAt + "\n"
                 + "payloadType=" + payloadType.wireName() + "\n";

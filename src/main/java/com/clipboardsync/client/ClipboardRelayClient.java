@@ -103,12 +103,14 @@ public class ClipboardRelayClient {
 
     private WebSocket connect(WebSocket.Listener listener) throws Exception {
         HandshakeHeaders headers = handshakeSigner.sign(
+                config.groupId(),
                 config.deviceId(),
                 config.ed25519PrivateKey(),
                 config.websocketPath()
         );
         return HttpClient.newHttpClient()
                 .newWebSocketBuilder()
+                .header("X-Clipboard-Group-Id", headers.groupId())
                 .header("X-Clipboard-Device-Id", headers.deviceId())
                 .header("X-Clipboard-Timestamp", headers.timestamp())
                 .header("X-Clipboard-Nonce", headers.nonce())
@@ -123,6 +125,7 @@ public class ClipboardRelayClient {
         byte[] associatedData = ClipboardAssociatedData.fromMetadata(
                 MessageType.CLIPBOARD_UPDATE,
                 updateId,
+                config.groupId(),
                 config.deviceId(),
                 createdAt,
                 PayloadType.TEXT
@@ -132,6 +135,7 @@ public class ClipboardRelayClient {
         return new ClipboardMessage(
                 MessageType.CLIPBOARD_UPDATE,
                 updateId,
+                config.groupId(),
                 config.deviceId(),
                 createdAt,
                 PayloadType.TEXT,

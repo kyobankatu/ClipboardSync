@@ -44,7 +44,7 @@ public class ClipboardWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        relayService.register(deviceId(session), session);
+        relayService.register(groupId(session), deviceId(session), session);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class ClipboardWebSocketHandler extends TextWebSocketHandler {
         try {
             ClipboardMessage message = objectMapper.readValue(textMessage.getPayload(), ClipboardMessage.class);
             validate(message);
-            relayService.relayUpdate(deviceId(session), message);
+            relayService.relayUpdate(groupId(session), deviceId(session), message);
         } catch (Exception exception) {
             sendError(session, "invalid_message", "Clipboard message was rejected");
         }
@@ -60,7 +60,7 @@ public class ClipboardWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        relayService.unregister(deviceId(session), session);
+        relayService.unregister(groupId(session), deviceId(session), session);
     }
 
     private void validate(ClipboardMessage message) {
@@ -76,6 +76,14 @@ public class ClipboardWebSocketHandler extends TextWebSocketHandler {
             return value;
         }
         throw new IllegalStateException("Missing authenticated device identifier");
+    }
+
+    private String groupId(WebSocketSession session) {
+        Object groupId = session.getAttributes().get(ClipboardRelayService.GROUP_ID_ATTRIBUTE);
+        if (groupId instanceof String value) {
+            return value;
+        }
+        throw new IllegalStateException("Missing authenticated group identifier");
     }
 
     private void sendError(WebSocketSession session, String code, String message) {

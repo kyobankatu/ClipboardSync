@@ -23,6 +23,7 @@ class ClientConfigTest {
         KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
         Map<String, String> environment = Map.of(
                 "CLIPBOARD_SYNC_SERVER_URL", "wss://relay.example.com/ws/clipboard",
+                "CLIPBOARD_SYNC_GROUP_ID", "alice",
                 "CLIPBOARD_SYNC_DEVICE_ID", "mac",
                 "CLIPBOARD_SYNC_ED25519_PRIVATE_KEY", Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()),
                 "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32])
@@ -32,6 +33,7 @@ class ClientConfigTest {
 
         assertThat(config.serverUri().toString()).isEqualTo("wss://relay.example.com/ws/clipboard");
         assertThat(config.websocketPath()).isEqualTo("/ws/clipboard");
+        assertThat(config.groupId()).isEqualTo("alice");
         assertThat(config.deviceId()).isEqualTo("mac");
         assertThat(config.e2eKey()).hasSize(32);
         assertThat(config.clipboardPollInterval().toMillis()).isEqualTo(500);
@@ -50,6 +52,7 @@ class ClientConfigTest {
         Path configPath = tempDir.resolve("client.properties");
         Files.writeString(configPath, ""
                 + "serverUrl=wss://relay.example.com/ws/clipboard\n"
+                + "groupId=alice\n"
                 + "deviceId=mac\n"
                 + "ed25519PrivateKey=" + Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()) + "\n"
                 + "e2eKey=" + Base64.getEncoder().encodeToString(new byte[32]) + "\n"
@@ -69,6 +72,7 @@ class ClientConfigTest {
         Path configPath = tempDir.resolve("client.properties");
         Files.writeString(configPath, ""
                 + "serverUrl=wss://file.example.com/ws/clipboard\n"
+                + "groupId=file-group\n"
                 + "deviceId=file-device\n"
                 + "ed25519PrivateKey=" + Base64.getEncoder().encodeToString(fileKeyPair.getPrivate().getEncoded()) + "\n"
                 + "e2eKey=" + Base64.getEncoder().encodeToString(new byte[32]) + "\n");
@@ -76,6 +80,7 @@ class ClientConfigTest {
         ClientConfig config = ClientConfig.fromEnvironment(Map.of(
                 "CLIPBOARD_SYNC_CLIENT_CONFIG", configPath.toString(),
                 "CLIPBOARD_SYNC_SERVER_URL", "wss://env.example.com/ws/clipboard",
+                "CLIPBOARD_SYNC_GROUP_ID", "env-group",
                 "CLIPBOARD_SYNC_DEVICE_ID", "env-device",
                 "CLIPBOARD_SYNC_ED25519_PRIVATE_KEY", Base64.getEncoder().encodeToString(envKeyPair.getPrivate().getEncoded()),
                 "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32]),
@@ -83,6 +88,7 @@ class ClientConfigTest {
         ));
 
         assertThat(config.serverUri().toString()).isEqualTo("wss://env.example.com/ws/clipboard");
+        assertThat(config.groupId()).isEqualTo("env-group");
         assertThat(config.deviceId()).isEqualTo("env-device");
         assertThat(config.clipboardPollInterval().toMillis()).isEqualTo(250);
     }
@@ -92,6 +98,7 @@ class ClientConfigTest {
         KeyPair keyPair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
         Map<String, String> environment = Map.of(
                 "CLIPBOARD_SYNC_SERVER_URL", "wss://relay.example.com/ws/clipboard",
+                "CLIPBOARD_SYNC_GROUP_ID", "alice",
                 "CLIPBOARD_SYNC_DEVICE_ID", "mac",
                 "CLIPBOARD_SYNC_ED25519_PRIVATE_KEY", Base64.getEncoder().encodeToString(keyPair.getPrivate().getEncoded()),
                 "CLIPBOARD_SYNC_E2E_KEY", Base64.getEncoder().encodeToString(new byte[32]),

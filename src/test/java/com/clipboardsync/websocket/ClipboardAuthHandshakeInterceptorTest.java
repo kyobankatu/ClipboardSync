@@ -26,11 +26,12 @@ class ClipboardAuthHandshakeInterceptorTest {
 
     private static final Instant NOW = Instant.parse("2026-05-22T00:00:00Z");
     private static final String PATH = "/ws/clipboard";
+    private static final String GROUP = "group-a";
 
     @Test
     void acceptsKnownDeviceWithValidSignature() throws Exception {
         KeyPair keyPair = ed25519KeyPair();
-        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("mac", publicKey(keyPair)));
+        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("group-a.mac", publicKey(keyPair)));
         MockHttpServletRequest servletRequest = request("mac", NOW.toString(), "nonce-1", signature("mac", keyPair));
         MockHttpServletResponse servletResponse = new MockHttpServletResponse();
         Map<String, Object> attributes = new HashMap<>();
@@ -43,13 +44,14 @@ class ClipboardAuthHandshakeInterceptorTest {
         );
 
         assertThat(accepted).isTrue();
+        assertThat(attributes).containsEntry(ClipboardRelayService.GROUP_ID_ATTRIBUTE, GROUP);
         assertThat(attributes).containsEntry(ClipboardRelayService.DEVICE_ID_ATTRIBUTE, "mac");
     }
 
     @Test
     void rejectsUnknownDevice() throws Exception {
         KeyPair keyPair = ed25519KeyPair();
-        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("mac", publicKey(keyPair)));
+        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("group-a.mac", publicKey(keyPair)));
         MockHttpServletRequest servletRequest = request("windows", NOW.toString(), "nonce-1", signature("windows", keyPair));
         MockHttpServletResponse servletResponse = new MockHttpServletResponse();
 
@@ -68,7 +70,7 @@ class ClipboardAuthHandshakeInterceptorTest {
     void rejectsSignatureFromDifferentPrivateKey() throws Exception {
         KeyPair registeredKeyPair = ed25519KeyPair();
         KeyPair attackerKeyPair = ed25519KeyPair();
-        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("mac", publicKey(registeredKeyPair)));
+        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("group-a.mac", publicKey(registeredKeyPair)));
         MockHttpServletRequest servletRequest = request("mac", NOW.toString(), "nonce-1", signature("mac", attackerKeyPair));
         MockHttpServletResponse servletResponse = new MockHttpServletResponse();
 
@@ -86,7 +88,7 @@ class ClipboardAuthHandshakeInterceptorTest {
     @Test
     void rejectsStaleTimestamp() throws Exception {
         KeyPair keyPair = ed25519KeyPair();
-        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("mac", publicKey(keyPair)));
+        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("group-a.mac", publicKey(keyPair)));
         String timestamp = NOW.minusSeconds(3600).toString();
         MockHttpServletRequest servletRequest = request("mac", timestamp, "nonce-1", signature("mac", keyPair, timestamp));
         MockHttpServletResponse servletResponse = new MockHttpServletResponse();
@@ -105,7 +107,7 @@ class ClipboardAuthHandshakeInterceptorTest {
     @Test
     void rejectsReusedNonce() throws Exception {
         KeyPair keyPair = ed25519KeyPair();
-        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("mac", publicKey(keyPair)));
+        ClipboardAuthHandshakeInterceptor interceptor = interceptor(Map.of("group-a.mac", publicKey(keyPair)));
         MockHttpServletRequest firstRequest = request("mac", NOW.toString(), "nonce-1", signature("mac", keyPair));
         MockHttpServletRequest secondRequest = request("mac", NOW.toString(), "nonce-1", signature("mac", keyPair));
 
@@ -142,6 +144,7 @@ class ClipboardAuthHandshakeInterceptorTest {
             String signature
     ) {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", PATH);
+        request.addHeader("X-Clipboard-Group-Id", GROUP);
         request.addHeader("X-Clipboard-Device-Id", deviceId);
         request.addHeader("X-Clipboard-Timestamp", timestamp);
         request.addHeader("X-Clipboard-Nonce", nonce);
@@ -163,6 +166,7 @@ class ClipboardAuthHandshakeInterceptorTest {
 
     private static String signature(String deviceId, KeyPair keyPair, String timestamp) throws Exception {
         String signingInput = "v1\n"
+                + "groupId=" + GROUP + "\n"
                 + "deviceId=" + deviceId + "\n"
                 + "timestamp=" + timestamp + "\n"
                 + "nonce=nonce-1\n"

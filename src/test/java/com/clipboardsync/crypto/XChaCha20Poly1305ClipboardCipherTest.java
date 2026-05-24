@@ -49,6 +49,7 @@ class XChaCha20Poly1305ClipboardCipherTest {
         ClipboardMessage message = new ClipboardMessage(
                 MessageType.CLIPBOARD_UPDATE,
                 "update-1",
+                "group-a",
                 "device-a",
                 Instant.parse("2026-05-21T00:00:00Z"),
                 PayloadType.TEXT,
@@ -59,6 +60,7 @@ class XChaCha20Poly1305ClipboardCipherTest {
                 .asString()
                 .contains("type=clipboard_update")
                 .contains("updateId=update-1")
+                .contains("groupId=group-a")
                 .contains("sourceDeviceId=device-a");
     }
 
@@ -67,6 +69,7 @@ class XChaCha20Poly1305ClipboardCipherTest {
         ClipboardMessage message = new ClipboardMessage(
                 MessageType.CLIPBOARD_UPDATE,
                 "update-1",
+                "group-a",
                 "device-a",
                 Instant.parse("2026-05-21T00:00:00Z"),
                 PayloadType.TEXT,
@@ -76,6 +79,7 @@ class XChaCha20Poly1305ClipboardCipherTest {
         assertThat(ClipboardAssociatedData.fromMetadata(
                 message.type(),
                 message.updateId(),
+                message.groupId(),
                 message.sourceDeviceId(),
                 message.createdAt(),
                 message.payloadType()

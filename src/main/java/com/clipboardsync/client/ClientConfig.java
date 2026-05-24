@@ -20,6 +20,7 @@ import java.util.Set;
  *
  * @param serverUri relay WebSocket URI
  * @param websocketPath path included in the Ed25519 handshake signature
+ * @param groupId synchronization group identifier
  * @param deviceId stable local device identifier
  * @param ed25519PrivateKey private key used only on this client device
  * @param e2eKey raw XChaCha20-Poly1305 key shared by trusted client devices
@@ -28,6 +29,7 @@ import java.util.Set;
 public record ClientConfig(
         URI serverUri,
         String websocketPath,
+        String groupId,
         String deviceId,
         PrivateKey ed25519PrivateKey,
         byte[] e2eKey,
@@ -57,6 +59,7 @@ public record ClientConfig(
     public static ClientConfig fromEnvironment(Map<String, String> environment) throws GeneralSecurityException {
         Properties fileProperties = loadClientProperties(environment);
         URI serverUri = URI.create(required(environment, fileProperties, "CLIPBOARD_SYNC_SERVER_URL", "serverUrl"));
+        String groupId = required(environment, fileProperties, "CLIPBOARD_SYNC_GROUP_ID", "groupId");
         String deviceId = required(environment, fileProperties, "CLIPBOARD_SYNC_DEVICE_ID", "deviceId");
         PrivateKey privateKey = decodePrivateKey(required(
                 environment,
@@ -75,7 +78,7 @@ public record ClientConfig(
                 "CLIPBOARD_SYNC_CLIPBOARD_POLL_INTERVAL_MILLIS",
                 "clipboardPollIntervalMillis"
         );
-        return new ClientConfig(serverUri, websocketPath, deviceId, privateKey, e2eKey, clipboardPollInterval);
+        return new ClientConfig(serverUri, websocketPath, groupId, deviceId, privateKey, e2eKey, clipboardPollInterval);
     }
 
     private static String required(Map<String, String> environment, Properties properties, String envName, String propertyName) {

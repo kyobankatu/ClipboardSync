@@ -23,8 +23,9 @@ class DeviceHandshakeSignerTest {
                 new SecureRandom()
         );
 
-        HandshakeHeaders headers = signer.sign("mac", keyPair.getPrivate(), "/ws/clipboard");
+        HandshakeHeaders headers = signer.sign("alice", "mac", keyPair.getPrivate(), "/ws/clipboard");
         String signingInput = DeviceHandshakeSigner.signingInput(
+                headers.groupId(),
                 headers.deviceId(),
                 headers.timestamp(),
                 headers.nonce(),
@@ -34,6 +35,7 @@ class DeviceHandshakeSignerTest {
         verifier.initVerify(keyPair.getPublic());
         verifier.update(signingInput.getBytes());
 
+        assertThat(headers.groupId()).isEqualTo("alice");
         assertThat(headers.deviceId()).isEqualTo("mac");
         assertThat(headers.timestamp()).isEqualTo("2026-05-22T00:00:00Z");
         assertThat(verifier.verify(Base64.getDecoder().decode(headers.signature()))).isTrue();

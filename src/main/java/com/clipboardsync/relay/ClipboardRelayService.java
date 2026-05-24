@@ -27,11 +27,13 @@ public class ClipboardRelayService {
 
     /** WebSocket session attribute containing the authenticated device identifier. */
     public static final String DEVICE_ID_ATTRIBUTE = "deviceId";
+    /** WebSocket session attribute containing the authenticated group identifier. */
+    public static final String GROUP_ID_ATTRIBUTE = "groupId";
 
     private final ClipboardSyncProperties properties;
     private final ObjectMapper objectMapper;
-    private final Map<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
-    private final AtomicReference<ClipboardMessage> latestMessage = new AtomicReference<>();
+    private final Map<SessionKey, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    private final Map<String, AtomicReference<ClipboardMessage>> latestMessages = new ConcurrentHashMap<>();
 
     /**
      * Creates a relay service.
@@ -47,12 +49,15 @@ public class ClipboardRelayService {
     /**
      * Registers an active client session and replays the latest encrypted update when available.
      *
+     * @param groupId authenticated synchronization group identifier
      * @param deviceId authenticated device identifier
      * @param session WebSocket session
      */
-    public void register(String deviceId, WebSocketSession session) {
-        sessions.put(deviceId, session);
-        ClipboardMessage latest = latestMessage.get();
+    public void register(String groupId, String deviceId, WebSocketSession session) {
+        sessions.put(new SessionKey(groupId, deviceId), session);
+        ClipboardMessage latest = latestMessages
+                .computeIfAbsent(groupId, ignored -> new AtomicReference<>())
+                .get();
         if (latest != null && !Objects.equals(latest.sourceDeviceId(), deviceId)) {
             send(session, latest.asLatestStateReplay());
         }
@@ -61,24 +66,28 @@ public class ClipboardRelayService {
     /**
      * Removes a client session if it is still associated with the provided device.
      *
+     * @param groupId authenticated synchronization group identifier
      * @param deviceId authenticated device identifier
      * @param session WebSocket session being closed
      */
-    public void unregister(String deviceId, WebSocketSession session) {
-        sessions.remove(deviceId, session);
+    public void unregister(String groupId, String deviceId, WebSocketSession session) {
+        sessions.remove(new SessionKey(groupId, deviceId), session);
     }
 
     /**
      * Accepts and broadcasts an encrypted clipboard update.
      *
+     * @param senderGroupId authenticated group identifier bound to the sender session
      * @param senderDeviceId authenticated device identifier bound to the sender session
      * @param message validated clipboard update
      */
-    public void relayUpdate(String senderDeviceId, ClipboardMessage message) {
-        validateRelayMessage(senderDeviceId, message);
-        latestMessage.set(message);
-        sessions.forEach((deviceId, session) -> {
-            if (!Objects.equals(deviceId, senderDeviceId) && session.isOpen()) {
+    public void relayUpdate(String senderGroupId, String senderDeviceId, ClipboardMessage message) {
+        validateRelayMessage(senderGroupId, senderDeviceId, message);
+        latestMessages.computeIfAbsent(senderGroupId, ignored -> new AtomicReference<>()).set(message);
+        sessions.forEach((sessionKey, session) -> {
+            if (Objects.equals(sessionKey.groupId(), senderGroupId)
+                    && !Objects.equals(sessionKey.deviceId(), senderDeviceId)
+                    && session.isOpen()) {
                 send(session, message);
             }
         });
@@ -87,12 +96,16 @@ public class ClipboardRelayService {
     /**
      * Validates routing and payload constraints that cannot be expressed with bean validation.
      *
+     * @param senderGroupId authenticated group identifier bound to the sender session
      * @param senderDeviceId authenticated device identifier bound to the sender session
      * @param message clipboard update
      */
-    public void validateRelayMessage(String senderDeviceId, ClipboardMessage message) {
+    public void validateRelayMessage(String senderGroupId, String senderDeviceId, ClipboardMessage message) {
         if (message.type() != MessageType.CLIPBOARD_UPDATE) {
             throw new IllegalArgumentException("Only clipboard_update messages can be relayed");
+        }
+        if (!Objects.equals(senderGroupId, message.groupId())) {
+            throw new IllegalArgumentException("groupId must match the authenticated group");
         }
         if (!Objects.equals(senderDeviceId, message.sourceDeviceId())) {
             throw new IllegalArgumentException("sourceDeviceId must match the authenticated device");
@@ -131,5 +144,8 @@ public class ClipboardRelayService {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to send WebSocket message", exception);
         }
+    }
+
+    private record SessionKey(String groupId, String deviceId) {
     }
 }

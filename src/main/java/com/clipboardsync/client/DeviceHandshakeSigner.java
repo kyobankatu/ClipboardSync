@@ -39,34 +39,48 @@ public class DeviceHandshakeSigner {
     /**
      * Signs the relay handshake metadata.
      *
-     * @param deviceId stable local device identifier
+     * @param groupId synchronization group identifier
+     * @param deviceId stable local device identifier within the group
      * @param privateKey Ed25519 private key for this device
      * @param websocketPath path used by the WebSocket endpoint
      * @return signed handshake headers
      * @throws Exception if signing fails
      */
-    public HandshakeHeaders sign(String deviceId, PrivateKey privateKey, String websocketPath) throws Exception {
+    public HandshakeHeaders sign(
+            String groupId,
+            String deviceId,
+            PrivateKey privateKey,
+            String websocketPath
+    ) throws Exception {
         String timestamp = Instant.now(clock).toString();
         String nonce = nonce();
-        String signingInput = signingInput(deviceId, timestamp, nonce, websocketPath);
+        String signingInput = signingInput(groupId, deviceId, timestamp, nonce, websocketPath);
         Signature signer = Signature.getInstance("Ed25519");
         signer.initSign(privateKey);
         signer.update(signingInput.getBytes(StandardCharsets.UTF_8));
         String signature = Base64.getEncoder().encodeToString(signer.sign());
-        return new HandshakeHeaders(deviceId, timestamp, nonce, signature);
+        return new HandshakeHeaders(groupId, deviceId, timestamp, nonce, signature);
     }
 
     /**
      * Builds the exact signing input verified by the relay server.
      *
-     * @param deviceId stable local device identifier
+     * @param groupId synchronization group identifier
+     * @param deviceId stable local device identifier within the group
      * @param timestamp ISO-8601 timestamp
      * @param nonce one-time random value
      * @param websocketPath WebSocket path
      * @return deterministic signing input
      */
-    public static String signingInput(String deviceId, String timestamp, String nonce, String websocketPath) {
+    public static String signingInput(
+            String groupId,
+            String deviceId,
+            String timestamp,
+            String nonce,
+            String websocketPath
+    ) {
         return "v1\n"
+                + "groupId=" + groupId + "\n"
                 + "deviceId=" + deviceId + "\n"
                 + "timestamp=" + timestamp + "\n"
                 + "nonce=" + nonce + "\n"

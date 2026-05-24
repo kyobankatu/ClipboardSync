@@ -74,6 +74,7 @@ public final class ClientCliApplication {
         System.out.println();
         System.out.println("Client properties template:");
         System.out.println("serverUrl=wss://relay.example.com/ws/clipboard");
+        System.out.println("groupId=<GROUP_ID>");
         System.out.println("deviceId=<DEVICE_ID>");
         System.out.println("ed25519PrivateKey=" + keys.ed25519PrivateKey());
         System.out.println("e2eKey=" + keys.e2eKey());

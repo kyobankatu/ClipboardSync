@@ -34,6 +34,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
 
     private static final String DEVICE_ID_HEADER = "X-Clipboard-Device-Id";
+    private static final String GROUP_ID_HEADER = "X-Clipboard-Group-Id";
     private static final String TIMESTAMP_HEADER = "X-Clipboard-Timestamp";
     private static final String NONCE_HEADER = "X-Clipboard-Nonce";
     private static final String SIGNATURE_HEADER = "X-Clipboard-Signature";
@@ -72,18 +73,23 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
             WebSocketHandler wsHandler,
             Map<String, Object> attributes
     ) {
+        String groupId = firstNonBlank(
+                request.getHeaders().getFirst(GROUP_ID_HEADER),
+                queryParam(request, "groupId").orElse(null)
+        );
         String deviceId = firstNonBlank(
                 request.getHeaders().getFirst(DEVICE_ID_HEADER),
                 queryParam(request, "deviceId").orElse(null)
         );
-        if (!StringUtils.hasText(deviceId)) {
+        if (!StringUtils.hasText(groupId) || !StringUtils.hasText(deviceId)) {
             response.setStatusCode(HttpStatus.BAD_REQUEST);
             return false;
         }
-        if (!isAuthorized(request, deviceId)) {
+        if (!isAuthorized(request, groupId, deviceId)) {
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
+        attributes.put(ClipboardRelayService.GROUP_ID_ATTRIBUTE, groupId);
         attributes.put(ClipboardRelayService.DEVICE_ID_ATTRIBUTE, deviceId);
         return true;
     }
@@ -97,9 +103,8 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
     ) {
     }
 
-    private boolean isAuthorized(ServerHttpRequest request, String deviceId) {
-        Map<String, String> devicePublicKeys = properties.devicePublicKeys();
-        String publicKey = devicePublicKeys.get(deviceId);
+    private boolean isAuthorized(ServerHttpRequest request, String groupId, String deviceId) {
+        String publicKey = properties.publicKeyFor(groupId, deviceId).orElse(null);
         if (!StringUtils.hasText(publicKey)) {
             return false;
         }
@@ -113,11 +118,11 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
         if (!isFresh(timestamp)) {
             return false;
         }
-        String signingInput = signingInput(deviceId, timestamp, nonce, request.getURI().getRawPath());
+        String signingInput = signingInput(groupId, deviceId, timestamp, nonce, request.getURI().getRawPath());
         if (!verifySignature(publicKey, signingInput, signature)) {
             return false;
         }
-        return acceptNonce(deviceId, nonce);
+        return acceptNonce(groupId, deviceId, nonce);
     }
 
     private boolean isFresh(String timestamp) {
@@ -130,17 +135,18 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
         }
     }
 
-    private String signingInput(String deviceId, String timestamp, String nonce, String path) {
+    private String signingInput(String groupId, String deviceId, String timestamp, String nonce, String path) {
         return "v1\n"
+                + "groupId=" + groupId + "\n"
                 + "deviceId=" + deviceId + "\n"
                 + "timestamp=" + timestamp + "\n"
                 + "nonce=" + nonce + "\n"
                 + "path=" + path + "\n";
     }
 
-    private boolean acceptNonce(String deviceId, String nonce) {
+    private boolean acceptNonce(String groupId, String deviceId, String nonce) {
         removeExpiredNonces();
-        String nonceKey = deviceId + ":" + nonce;
+        String nonceKey = groupId + ":" + deviceId + ":" + nonce;
         return acceptedNonces.putIfAbsent(nonceKey, Instant.now(clock)) == null;
     }
 

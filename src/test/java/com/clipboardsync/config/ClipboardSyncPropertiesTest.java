@@ -55,8 +55,27 @@ class ClipboardSyncPropertiesTest {
         );
 
         assertThat(properties.devicePublicKeys())
-                .containsEntry("MACBOOK", "mac-public-key")
-                .containsEntry("WINDOWS", "windows-public-key");
+                .containsEntry("default/MACBOOK", "mac-public-key")
+                .containsEntry("default/WINDOWS", "windows-public-key");
+        assertThat(properties.publicKeyFor("default", "MACBOOK")).contains("mac-public-key");
+    }
+
+    @Test
+    void loadsGroupedDevicePublicKeysFromDirectory() throws Exception {
+        Files.writeString(tempDir.resolve("alice.MACBOOK"), "alice-mac-public-key\n");
+        Files.createDirectories(tempDir.resolve("bob"));
+        Files.writeString(tempDir.resolve("bob").resolve("MACBOOK"), "bob-mac-public-key\n");
+
+        ClipboardSyncProperties properties = new ClipboardSyncProperties(
+                "/ws/clipboard",
+                new String[]{"*"},
+                128,
+                tempDir.toString(),
+                Map.of()
+        );
+
+        assertThat(properties.publicKeyFor("alice", "MACBOOK")).contains("alice-mac-public-key");
+        assertThat(properties.publicKeyFor("bob", "MACBOOK")).contains("bob-mac-public-key");
     }
 
     @Test
@@ -72,6 +91,6 @@ class ClipboardSyncPropertiesTest {
         );
 
         assertThat(properties.devicePublicKeys())
-                .containsEntry("MACBOOK", "configured-key");
+                .containsEntry("default/MACBOOK", "configured-key");
     }
 }
