@@ -101,6 +101,13 @@ public class MacLaunchAgentAutostartService implements AutostartService {
                     <true/>
                     <key>KeepAlive</key>
                     <true/>
+                    <key>EnvironmentVariables</key>
+                    <dict>
+                      <key>LANG</key>
+                      <string>en_US.UTF-8</string>
+                      <key>LC_CTYPE</key>
+                      <string>UTF-8</string>
+                    </dict>
                     <key>StandardOutPath</key>
                     <string>%s</string>
                     <key>StandardErrorPath</key>

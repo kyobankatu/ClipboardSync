@@ -22,7 +22,7 @@ public class MacCommandClipboardService implements ClipboardService {
     @Override
     public Optional<String> readText() {
         try {
-            Process process = new ProcessBuilder("pbpaste").start();
+            Process process = processBuilder("pbpaste").start();
             String text = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             int exitCode = process.waitFor();
             if (exitCode == 0 && !text.isEmpty()) {
@@ -40,7 +40,7 @@ public class MacCommandClipboardService implements ClipboardService {
     @Override
     public void writeText(String text) {
         try {
-            Process process = new ProcessBuilder("pbcopy").start();
+            Process process = processBuilder("pbcopy").start();
             try (OutputStream outputStream = process.getOutputStream()) {
                 outputStream.write(text.getBytes(StandardCharsets.UTF_8));
             }
@@ -54,5 +54,12 @@ public class MacCommandClipboardService implements ClipboardService {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while writing macOS clipboard", exception);
         }
+    }
+
+    private ProcessBuilder processBuilder(String command) {
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.environment().put("LANG", "en_US.UTF-8");
+        builder.environment().put("LC_CTYPE", "UTF-8");
+        return builder;
     }
 }
