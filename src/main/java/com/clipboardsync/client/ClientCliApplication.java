@@ -1,5 +1,8 @@
 package com.clipboardsync.client;
 
+import com.clipboardsync.client.autostart.AutostartService;
+import com.clipboardsync.client.autostart.AutostartServiceFactory;
+
 import java.net.http.HttpResponse;
 import java.net.http.WebSocketHandshakeException;
 import java.util.Arrays;
@@ -29,6 +32,9 @@ public final class ClientCliApplication {
                 case "send" -> send(Arrays.copyOfRange(args, 1, args.length));
                 case "listen" -> listen();
                 case "sync" -> sync();
+                case "install-autostart" -> installAutostart();
+                case "uninstall-autostart" -> uninstallAutostart();
+                case "autostart-status" -> autostartStatus();
                 default -> {
                     System.err.println("Unknown client command: " + args[0]);
                     printUsage();
@@ -105,11 +111,31 @@ public final class ClientCliApplication {
         new ClipboardSyncRunner(client, clipboardService, clipboardWatcher).run();
     }
 
+    private static void installAutostart() throws Exception {
+        AutostartService autostartService = AutostartServiceFactory.create();
+        autostartService.install();
+        System.out.println("Autostart installed");
+    }
+
+    private static void uninstallAutostart() throws Exception {
+        AutostartService autostartService = AutostartServiceFactory.create();
+        autostartService.uninstall();
+        System.out.println("Autostart uninstalled");
+    }
+
+    private static void autostartStatus() throws Exception {
+        AutostartService autostartService = AutostartServiceFactory.create();
+        System.out.println(autostartService.status());
+    }
+
     private static void printUsage() {
         System.out.println("Usage:");
         System.out.println("  client generate-keys");
         System.out.println("  client send <text>");
         System.out.println("  client listen");
         System.out.println("  client sync");
+        System.out.println("  client install-autostart");
+        System.out.println("  client uninstall-autostart");
+        System.out.println("  client autostart-status");
     }
 }

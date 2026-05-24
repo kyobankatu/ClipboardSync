@@ -572,3 +572,66 @@ bob.WINDOWS
 - Test unregistered group/device combinations are rejected.
 - Test two groups can use the same `deviceId` without sharing messages.
 - Test `groupId` is included in encrypted associated data.
+
+## 15. Autostart and Bundled Runtime Plan
+
+This phase makes the CLI client suitable for daily use without requiring users to start it manually
+or install Java separately.
+
+### Implementation Order
+
+1. Add autostart CLI commands.
+2. Support macOS login autostart with LaunchAgent.
+3. Support Windows login autostart with Task Scheduler.
+4. Add status and uninstall commands.
+5. Add a Java-runtime-bundled client distribution using JDK tools.
+6. Make autostart prefer the bundled launcher when available.
+
+### CLI Commands
+
+- Add `client install-autostart`.
+- Add `client uninstall-autostart`.
+- Add `client autostart-status`.
+- Keep these commands separate from `client sync`.
+- Do not require a GUI.
+- Do not log secrets or clipboard plaintext.
+
+### macOS Autostart
+
+- Generate `~/Library/LaunchAgents/com.clipboardsync.client.plist`.
+- Configure it to run the packaged client with `client sync`.
+- Enable `RunAtLoad` and `KeepAlive`.
+- Write stdout and stderr logs under `~/.local/state/clipboardsync`.
+- Use `launchctl bootstrap gui/$UID` when available.
+- Remove the plist and unload the service during uninstall.
+
+### Windows Autostart
+
+- Register a per-user Task Scheduler task named `ClipboardSync`.
+- Trigger the task at user logon.
+- Run the packaged client with `client sync`.
+- Unregister the task during uninstall.
+- Use `schtasks.exe` to avoid adding extra dependencies.
+
+### Launcher Resolution
+
+- When running from a bundled distribution, autostart should call the distribution launcher.
+- When running from a packaged jar, autostart may call `java -jar <jar> client sync`.
+- Reject autostart installation from Gradle `bootRun` because the runtime path is not stable.
+
+### Java-Free Client Distribution
+
+- Add a Gradle task that builds a client distribution containing:
+  - the Spring Boot executable jar
+  - a reduced Java runtime image created with `jlink`
+  - macOS/Linux launcher script
+  - Windows launcher script
+- The launcher scripts should set `CLIPBOARD_SYNC_LAUNCHER_PATH` so autostart can register the
+  stable launcher path instead of a system Java command.
+- Generate archive artifacts under `build/distributions`.
+
+### Tests
+
+- Test OS-specific autostart command generation without mutating the real machine.
+- Test packaged launcher resolution.
+- Test Gradle/bootRun autostart installation is rejected with a clear error.

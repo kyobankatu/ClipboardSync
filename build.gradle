@@ -36,3 +36,94 @@ tasks.named('javadoc') {
     options.addBooleanOption('Xdoclint:all', true)
     options.encoding = 'UTF-8'
 }
+
+def clientRuntimeDir = layout.buildDirectory.dir('client-runtime/ClipboardSync')
+def clientRuntimeModules = [
+        'java.base',
+        'java.datatransfer',
+        'java.desktop',
+        'java.instrument',
+        'java.logging',
+        'java.management',
+        'java.naming',
+        'java.net.http',
+        'java.security.jgss',
+        'java.security.sasl',
+        'java.sql',
+        'java.xml',
+        'jdk.crypto.ec'
+]
+
+tasks.register('clientRuntimeImage') {
+    dependsOn tasks.named('bootJar')
+    description = 'Builds a ClipboardSync client distribution with a bundled Java runtime.'
+    group = 'distribution'
+
+    doLast {
+        def outputDir = clientRuntimeDir.get().asFile
+        def runtimeDir = new File(outputDir, 'runtime')
+        def appDir = new File(outputDir, 'app')
+        def binDir = new File(outputDir, 'bin')
+        delete outputDir
+        appDir.mkdirs()
+        binDir.mkdirs()
+
+        def javaHome = javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(21)
+        }.get().metadata.installationPath.asFile
+        def executableSuffix = org.gradle.internal.os.OperatingSystem.current().isWindows() ? '.exe' : ''
+        def jlink = new File(javaHome, "bin/jlink${executableSuffix}")
+        exec {
+            commandLine jlink.absolutePath,
+                    '--strip-debug',
+                    '--no-header-files',
+                    '--no-man-pages',
+                    '--compress', 'zip-6',
+                    '--add-modules', clientRuntimeModules.join(','),
+                    '--output', runtimeDir.absolutePath
+        }
+
+        copy {
+            from tasks.named('bootJar').get().archiveFile
+            into appDir
+            rename { 'clipboard-sync.jar' }
+        }
+
+        def unixLauncher = new File(binDir, 'clipboardsync')
+        unixLauncher.text = '''#!/usr/bin/env sh
+set -eu
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+APP_HOME="$(dirname "$SCRIPT_DIR")"
+export CLIPBOARD_SYNC_LAUNCHER_PATH="$SCRIPT_DIR/clipboardsync"
+exec "$APP_HOME/runtime/bin/java" -jar "$APP_HOME/app/clipboard-sync.jar" "$@"
+'''
+        unixLauncher.setExecutable(true)
+
+        def windowsLauncher = new File(binDir, 'clipboardsync.bat')
+        windowsLauncher.text = '''@echo off
+setlocal
+set "SCRIPT_DIR=%~dp0"
+set "APP_HOME=%SCRIPT_DIR%.."
+set "CLIPBOARD_SYNC_LAUNCHER_PATH=%SCRIPT_DIR%clipboardsync.bat"
+"%APP_HOME%\\runtime\\bin\\java.exe" -jar "%APP_HOME%\\app\\clipboard-sync.jar" %*
+'''
+    }
+}
+
+tasks.register('clientRuntimeZip', Zip) {
+    dependsOn tasks.named('clientRuntimeImage')
+    description = 'Archives the bundled ClipboardSync client runtime as a zip file.'
+    group = 'distribution'
+    archiveBaseName = 'clipboardsync-client-runtime'
+    from(clientRuntimeDir)
+}
+
+tasks.register('clientRuntimeTar', Tar) {
+    dependsOn tasks.named('clientRuntimeImage')
+    description = 'Archives the bundled ClipboardSync client runtime as a tar.gz file.'
+    group = 'distribution'
+    archiveBaseName = 'clipboardsync-client-runtime'
+    compression = Compression.GZIP
+    archiveExtension = 'tar.gz'
+    from(clientRuntimeDir)
+}
