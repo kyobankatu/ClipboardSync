@@ -1,20 +1,9 @@
 package com.clipboardsync.client;
 
-import com.clipboardsync.crypto.ClipboardAssociatedData;
-import com.clipboardsync.crypto.XChaCha20Poly1305ClipboardCipher;
 import com.clipboardsync.protocol.ClipboardMessage;
-import com.clipboardsync.protocol.EncryptedPayload;
-import com.clipboardsync.protocol.MessageType;
-import com.clipboardsync.protocol.PayloadType;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-import java.net.http.HttpClient;
 import java.net.http.WebSocket;
-import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
@@ -25,8 +14,9 @@ import java.util.function.Consumer;
 public class ClipboardRelayClient {
 
     private final ClientConfig config;
-    private final ObjectMapper objectMapper;
-    private final DeviceHandshakeSigner handshakeSigner;
+    private final RelayWebSocketTransport transport;
+    private final ClipboardMessageJsonCodec jsonCodec;
+    private final ClipboardMessageCryptor messageCryptor;
 
     /**
      * Creates a relay client.
@@ -34,20 +24,32 @@ public class ClipboardRelayClient {
      * @param config client runtime configuration
      */
     public ClipboardRelayClient(ClientConfig config) {
-        this(config, new DeviceHandshakeSigner(), objectMapper());
+        this(
+                config,
+                new RelayWebSocketTransport(config, new DeviceHandshakeSigner()),
+                new ClipboardMessageJsonCodec(),
+                new ClipboardMessageCryptor(config)
+        );
     }
 
     /**
      * Creates a relay client with explicit collaborators for tests.
      *
      * @param config client runtime configuration
-     * @param handshakeSigner handshake signer
-     * @param objectMapper JSON mapper
+     * @param transport WebSocket transport
+     * @param jsonCodec clipboard message JSON codec
+     * @param messageCryptor clipboard message encryptor/decryptor
      */
-    ClipboardRelayClient(ClientConfig config, DeviceHandshakeSigner handshakeSigner, ObjectMapper objectMapper) {
+    ClipboardRelayClient(
+            ClientConfig config,
+            RelayWebSocketTransport transport,
+            ClipboardMessageJsonCodec jsonCodec,
+            ClipboardMessageCryptor messageCryptor
+    ) {
         this.config = config;
-        this.handshakeSigner = handshakeSigner;
-        this.objectMapper = objectMapper;
+        this.transport = transport;
+        this.jsonCodec = jsonCodec;
+        this.messageCryptor = messageCryptor;
     }
 
     /**
@@ -71,8 +73,8 @@ public class ClipboardRelayClient {
      */
     public void send(WebSocket webSocket, String text) {
         try {
-            ClipboardMessage message = encryptedMessage(text);
-            webSocket.sendText(objectMapper.writeValueAsString(message), true).join();
+            ClipboardMessage message = messageCryptor.encryptText(text);
+            transport.sendText(webSocket, jsonCodec.serialize(message));
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to send encrypted clipboard update", exception);
         }
@@ -102,65 +104,19 @@ public class ClipboardRelayClient {
     }
 
     private WebSocket connect(WebSocket.Listener listener) throws Exception {
-        HandshakeHeaders headers = handshakeSigner.sign(
-                config.groupId(),
-                config.deviceId(),
-                config.ed25519PrivateKey(),
-                config.websocketPath()
-        );
-        return HttpClient.newHttpClient()
-                .newWebSocketBuilder()
-                .header("X-Clipboard-Group-Id", headers.groupId())
-                .header("X-Clipboard-Device-Id", headers.deviceId())
-                .header("X-Clipboard-Timestamp", headers.timestamp())
-                .header("X-Clipboard-Nonce", headers.nonce())
-                .header("X-Clipboard-Signature", headers.signature())
-                .buildAsync(config.serverUri(), listener)
-                .join();
-    }
-
-    private ClipboardMessage encryptedMessage(String text) throws Exception {
-        String updateId = UUID.randomUUID().toString();
-        Instant createdAt = Instant.now();
-        byte[] associatedData = ClipboardAssociatedData.fromMetadata(
-                MessageType.CLIPBOARD_UPDATE,
-                updateId,
-                config.groupId(),
-                config.deviceId(),
-                createdAt,
-                PayloadType.TEXT
-        );
-        EncryptedPayload payload = new XChaCha20Poly1305ClipboardCipher(config.e2eKey())
-                .encryptText(text, associatedData);
-        return new ClipboardMessage(
-                MessageType.CLIPBOARD_UPDATE,
-                updateId,
-                config.groupId(),
-                config.deviceId(),
-                createdAt,
-                PayloadType.TEXT,
-                payload
-        );
+        return transport.connect(listener);
     }
 
     private void handleIncoming(String json, Consumer<String> incomingText) {
         try {
-            ClipboardMessage message = objectMapper.readValue(json, ClipboardMessage.class);
+            ClipboardMessage message = jsonCodec.deserialize(json);
             if (Objects.equals(message.sourceDeviceId(), config.deviceId())) {
                 return;
             }
-            String plaintext = new XChaCha20Poly1305ClipboardCipher(config.e2eKey())
-                    .decryptText(message.payload(), ClipboardAssociatedData.fromMessageMetadata(message));
-            incomingText.accept(plaintext);
+            incomingText.accept(messageCryptor.decryptText(message));
         } catch (Exception exception) {
             System.err.println("Rejected incoming clipboard update");
         }
-    }
-
-    private static ObjectMapper objectMapper() {
-        return new ObjectMapper()
-                .registerModule(new JavaTimeModule())
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     private class DecryptingListener implements WebSocket.Listener {

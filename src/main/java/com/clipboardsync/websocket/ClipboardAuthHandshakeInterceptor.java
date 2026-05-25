@@ -1,6 +1,6 @@
 package com.clipboardsync.websocket;
 
-import com.clipboardsync.config.ClipboardSyncProperties;
+import com.clipboardsync.config.DevicePublicKeyStore;
 import com.clipboardsync.relay.ClipboardRelayService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -41,28 +41,28 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
     private static final String SIGNATURE_ALGORITHM = "Ed25519";
     private static final Duration MAX_CLOCK_SKEW = Duration.ofMinutes(5);
 
-    private final ClipboardSyncProperties properties;
+    private final DevicePublicKeyStore publicKeyStore;
     private final Clock clock;
     private final Map<String, Instant> acceptedNonces = new ConcurrentHashMap<>();
 
     /**
      * Creates the handshake interceptor.
      *
-     * @param properties relay runtime settings
+     * @param publicKeyStore registered device public keys
      */
     @Autowired
-    public ClipboardAuthHandshakeInterceptor(ClipboardSyncProperties properties) {
-        this(properties, Clock.systemUTC());
+    public ClipboardAuthHandshakeInterceptor(DevicePublicKeyStore publicKeyStore) {
+        this(publicKeyStore, Clock.systemUTC());
     }
 
     /**
      * Creates the handshake interceptor with an explicit clock for tests.
      *
-     * @param properties relay runtime settings
+     * @param publicKeyStore registered device public keys
      * @param clock current time source
      */
-    ClipboardAuthHandshakeInterceptor(ClipboardSyncProperties properties, Clock clock) {
-        this.properties = properties;
+    ClipboardAuthHandshakeInterceptor(DevicePublicKeyStore publicKeyStore, Clock clock) {
+        this.publicKeyStore = publicKeyStore;
         this.clock = clock;
     }
 
@@ -104,7 +104,7 @@ public class ClipboardAuthHandshakeInterceptor implements HandshakeInterceptor {
     }
 
     private boolean isAuthorized(ServerHttpRequest request, String groupId, String deviceId) {
-        String publicKey = properties.publicKeyFor(groupId, deviceId).orElse(null);
+        String publicKey = publicKeyStore.publicKeyFor(groupId, deviceId).orElse(null);
         if (!StringUtils.hasText(publicKey)) {
             return false;
         }

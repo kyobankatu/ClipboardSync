@@ -19,6 +19,6 @@ class ClipboardSyncPropertiesEnvironmentTest {
         );
 
         assertThat(properties.devicePublicKeys())
-                .containsEntry("default/MACBOOK", "public-key");
+                .containsEntry("MACBOOK", "public-key");
     }
 }

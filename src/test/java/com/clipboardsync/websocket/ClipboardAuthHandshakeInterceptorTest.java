@@ -1,6 +1,6 @@
 package com.clipboardsync.websocket;
 
-import com.clipboardsync.config.ClipboardSyncProperties;
+import com.clipboardsync.config.DevicePublicKeyStore;
 import com.clipboardsync.relay.ClipboardRelayService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
@@ -132,7 +132,7 @@ class ClipboardAuthHandshakeInterceptorTest {
 
     private ClipboardAuthHandshakeInterceptor interceptor(Map<String, String> devicePublicKeys) {
         return new ClipboardAuthHandshakeInterceptor(
-                new ClipboardSyncProperties(PATH, new String[]{"*"}, 128, "", devicePublicKeys),
+                new DevicePublicKeyStore(devicePublicKeys),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
